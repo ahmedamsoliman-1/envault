@@ -7,7 +7,6 @@ import {
   initializeApp,
 } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 
 export interface FirebaseAdminOptions {
   projectId: string;
@@ -35,8 +34,4 @@ export function getFirebaseAdminApp(options: FirebaseAdminOptions) {
 
 export function getFirebaseAdminAuth(options: FirebaseAdminOptions) {
   return getAuth(getFirebaseAdminApp(options));
-}
-
-export function getFirebaseAdminFirestore(options: FirebaseAdminOptions) {
-  return getFirestore(getFirebaseAdminApp(options));
 }

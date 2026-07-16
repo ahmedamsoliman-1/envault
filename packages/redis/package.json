@@ -1,0 +1,20 @@
+{
+  "name": "@envault/redis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./repositories": "./src/repositories.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@envault/api-contract": "workspace:*",
+    "redis": "^6.1.0"
+  }
+}

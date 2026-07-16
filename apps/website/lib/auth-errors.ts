@@ -51,6 +51,9 @@ export function getAuthErrorMessage(
   operation: AuthOperation,
 ): string {
   if (error instanceof EnvaultApiError) {
+    if (error.status >= 500) {
+      return "Firebase authentication succeeded, but Envault could not create its secure application session. Check the Redis configuration and try again.";
+    }
     if (error.error.code === "UNAUTHENTICATED") {
       return operationFallbacks.session;
     }

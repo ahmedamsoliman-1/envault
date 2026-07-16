@@ -1,8 +1,17 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { envaultRedisKey } from "@envault/redis";
 
-import { getAdminAuth, getSessionConfiguration } from "./firebase-admin";
+import { getAdminFirestore, getSessionConfiguration } from "./firebase-admin";
+
+interface RedisSession {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  emailVerified: boolean;
+  mfaEnabled: boolean;
+}
 
 export async function getSessionUser(checkRevoked = true) {
   const sessionConfiguration = getSessionConfiguration();
@@ -12,21 +21,8 @@ export async function getSessionUser(checkRevoked = true) {
     return null;
   }
 
-  try {
-    const firebaseAdminAuth = getAdminAuth();
-    const token = await firebaseAdminAuth.verifySessionCookie(
-      sessionCookie,
-      checkRevoked,
-    );
-    const user = await firebaseAdminAuth.getUser(token.uid);
-    return {
-      id: user.uid,
-      email: user.email ?? null,
-      displayName: user.displayName ?? null,
-      emailVerified: user.emailVerified,
-      mfaEnabled: false,
-    };
-  } catch {
-    return null;
-  }
+  void checkRevoked;
+  return getAdminFirestore().get<RedisSession>(
+    envaultRedisKey("session", sessionCookie),
+  );
 }

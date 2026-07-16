@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@envault/api-contract": "workspace:*",
+    "@envault/redis": "workspace:*",
     "firebase": "^12.0.0",
     "firebase-admin": "^13.4.0",
     "server-only": "^0.0.1"

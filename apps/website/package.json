@@ -16,6 +16,7 @@
     "@envault/crypto": "workspace:*",
     "@envault/dotenv": "workspace:*",
     "@envault/firebase": "workspace:*",
+    "@envault/redis": "workspace:*",
     "@hookform/resolvers": "^5.1.1",
     "@next/env": "^15.4.2",
     "@radix-ui/react-dialog": "^1.1.14",

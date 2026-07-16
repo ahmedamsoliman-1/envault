@@ -1,10 +1,8 @@
 import "server-only";
 
 import { parseServerEnvironment } from "@envault/config/server";
-import {
-  getFirebaseAdminAuth,
-  getFirebaseAdminFirestore,
-} from "@envault/firebase/admin";
+import { getFirebaseAdminAuth } from "@envault/firebase/admin";
+import { getEnvaultRedis } from "@envault/redis";
 import { loadEnvConfig } from "@next/env";
 import path from "node:path";
 
@@ -55,11 +53,5 @@ export function getAdminAuth() {
 
 export function getAdminFirestore() {
   ensureLocalEnvironmentLoaded();
-  const environment = parseServerEnvironment(process.env);
-
-  return getFirebaseAdminFirestore({
-    projectId: environment.FIREBASE_ADMIN_PROJECT_ID,
-    clientEmail: environment.FIREBASE_ADMIN_CLIENT_EMAIL,
-    privateKey: environment.FIREBASE_ADMIN_PRIVATE_KEY,
-  });
+  return getEnvaultRedis(process.env);
 }

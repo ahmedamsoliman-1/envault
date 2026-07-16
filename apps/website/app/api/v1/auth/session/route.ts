@@ -1,4 +1,5 @@
 import { sessionExchangeRequestSchema } from "@envault/api-contract";
+import { envaultRedisKey } from "@envault/redis";
 import type { NextRequest } from "next/server";
 
 import {
@@ -122,22 +123,23 @@ export async function POST(request: NextRequest) {
       );
     }
     const maxAgeMilliseconds = sessionConfiguration.maxAgeSeconds * 1_000;
-    const sessionCookie = await firebaseAdminAuth.createSessionCookie(
-      result.data.idToken,
-      {
-        expiresIn: maxAgeMilliseconds,
-      },
+    const sessionCookie = crypto.randomUUID();
+    const sessionUser = {
+      id: decodedToken.uid,
+      email: decodedToken.email ?? null,
+      displayName:
+        typeof decodedToken.name === "string" ? decodedToken.name : null,
+      emailVerified: decodedToken.email_verified ?? false,
+      mfaEnabled: customMfaEnabled,
+    };
+    await getAdminFirestore().set(
+      envaultRedisKey("session", sessionCookie),
+      sessionUser,
+      { ex: sessionConfiguration.maxAgeSeconds },
     );
     const response = successResponse(
       {
-        user: {
-          id: decodedToken.uid,
-          email: decodedToken.email ?? null,
-          displayName:
-            typeof decodedToken.name === "string" ? decodedToken.name : null,
-          emailVerified: decodedToken.email_verified ?? false,
-          mfaEnabled: customMfaEnabled,
-        },
+        user: sessionUser,
         expiresAt: new Date(Date.now() + maxAgeMilliseconds).toISOString(),
       },
       requestId,
@@ -151,7 +153,21 @@ export async function POST(request: NextRequest) {
       }`,
     );
     return response;
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "REDIS_CONFIGURATION_INCOMPLETE" ||
+        error.message.includes("fetch"))
+    ) {
+      return errorResponse(
+        {
+          code: "INTERNAL_ERROR",
+          message: "Secure session storage is unavailable.",
+        },
+        requestId,
+        503,
+      );
+    }
     return errorResponse(
       {
         code: "UNAUTHENTICATED",
@@ -163,7 +179,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   const requestId = crypto.randomUUID();
   if (!hasTrustedOrigin(request)) {
     return errorResponse(
@@ -174,6 +190,9 @@ export function DELETE(request: NextRequest) {
   }
 
   const sessionConfiguration = getSessionConfiguration();
+  const sessionId = request.cookies.get(sessionConfiguration.cookieName)?.value;
+  if (sessionId)
+    await getAdminFirestore().del(envaultRedisKey("session", sessionId));
   const response = successResponse({ signedOut: true as const }, requestId);
   response.headers.append(
     "Set-Cookie",
