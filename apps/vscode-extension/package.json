@@ -1,0 +1,63 @@
+{
+  "name": "@envault/vscode-extension",
+  "displayName": "Envault",
+  "description": "Secure environment management from VS Code.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "envault",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:envault.signIn",
+    "onCommand:envault.signOut",
+    "onCommand:envault.status",
+    "onCommand:envault.selectEnvironment"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "envault.signIn",
+        "title": "Envault: Sign in"
+      },
+      {
+        "command": "envault.signOut",
+        "title": "Envault: Sign out"
+      },
+      {
+        "command": "envault.status",
+        "title": "Envault: Show connection status"
+      },
+      {
+        "command": "envault.selectEnvironment",
+        "title": "Envault: Select environment"
+      }
+    ],
+    "configuration": {
+      "title": "Envault",
+      "properties": {
+        "envault.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Envault server URL."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@envault/api-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.100.0"
+  }
+}

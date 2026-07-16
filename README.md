@@ -7,6 +7,7 @@ Envault is an API-first, client-side encrypted environment variable management p
 - [Firebase free-tier constraints](docs/firebase-free-tier.md)
 - [Envault-managed authenticator MFA](docs/custom-totp-mfa.md)
 - [Redis primary storage](docs/redis-storage.md)
+- [Device authorization](docs/device-authorization.md)
 
 ## Prerequisites
 

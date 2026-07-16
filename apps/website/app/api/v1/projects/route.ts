@@ -8,15 +8,16 @@ import {
   successResponse,
 } from "@/lib/api-response";
 import { getAdminFirestore } from "@/lib/firebase-admin";
+import { getRequestPrincipal } from "@/lib/request-auth";
 import { hasTrustedOrigin } from "@/lib/request-security";
 import { getSessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID();
-  const user = await getSessionUser();
-  if (!user) {
+  const principal = await getRequestPrincipal(request, "projects:read");
+  if (!principal) {
     return errorResponse(
       { code: "UNAUTHENTICATED", message: "Authentication is required." },
       requestId,
@@ -27,7 +28,7 @@ export async function GET() {
   try {
     const repository = new FirestoreProjectRepository(getAdminFirestore());
     return successResponse(
-      { projects: await repository.list(user.id) },
+      { projects: await repository.list(principal.id) },
       requestId,
     );
   } catch {

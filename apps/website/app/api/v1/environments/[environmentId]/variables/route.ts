@@ -8,16 +8,17 @@ import {
   successResponse,
 } from "@/lib/api-response";
 import { getAdminFirestore } from "@/lib/firebase-admin";
+import { getRequestPrincipal } from "@/lib/request-auth";
 import { hasTrustedOrigin } from "@/lib/request-security";
 import { getSessionUser } from "@/lib/session";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ environmentId: string }> },
 ) {
   const requestId = crypto.randomUUID();
-  const user = await getSessionUser();
-  if (!user)
+  const principal = await getRequestPrincipal(request, "variables:read");
+  if (!principal)
     return errorResponse(
       { code: "UNAUTHENTICATED", message: "Authentication is required." },
       requestId,
@@ -27,7 +28,7 @@ export async function GET(
   try {
     const result = await new FirestoreEnvironmentRepository(
       getAdminFirestore(),
-    ).listVariables(user.id, environmentId);
+    ).listVariables(principal.id, environmentId);
     if (!result)
       return errorResponse(
         { code: "FORBIDDEN", message: "The environment is unavailable." },

@@ -1688,20 +1688,20 @@ serve its first external client.
 
 ### Stage A — Device authorization
 
-- [ ] Device authorization model and short-lived browser approval codes.
-- [ ] Scoped device-session model.
-- [ ] Device approval page.
-- [ ] Device authorization and token-exchange endpoints.
-- [ ] Device list and revocation controls in Settings.
+- [x] Device authorization model and short-lived browser approval codes.
+- [x] Scoped device-session model.
+- [x] Device approval page.
+- [x] Device authorization and token-exchange endpoints.
+- [x] Device list and revocation controls in Settings.
 
 ### Stage B — VS Code extension foundation
 
-- [ ] Create `apps/vscode-extension`.
-- [ ] Authenticate through browser-based device authorization.
-- [ ] Store only revocable device credentials in VS Code secret storage.
-- [ ] Use the shared API client and `/api/v1`; never connect directly to Redis
+- [x] Create `apps/vscode-extension`.
+- [x] Authenticate through browser-based device authorization.
+- [x] Store only revocable device credentials in VS Code secret storage.
+- [x] Use the shared API client and `/api/v1`; never connect directly to Redis
       or Firebase.
-- [ ] Select projects and environments.
+- [x] Select projects and environments.
 - [ ] Pull remote environments into local dotenv files.
 - [ ] Push updates with expected-version and idempotency protection.
 - [ ] Present refresh, overwrite and merge choices for HTTP 409 conflicts.

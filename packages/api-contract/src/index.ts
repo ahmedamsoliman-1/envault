@@ -55,6 +55,41 @@ export const mfaEnrollmentResponseSchema = z.object({
 });
 export const mfaStatusSchema = z.object({ enabled: z.boolean() });
 
+export const deviceScopeSchema = z.enum([
+  "projects:read",
+  "environments:read",
+  "variables:read",
+  "variables:write",
+]);
+export const createDeviceAuthorizationRequestSchema = z.object({
+  deviceName: z.string().trim().min(1).max(80),
+  clientName: z.string().trim().min(1).max(80).default("Envault VS Code"),
+  codeChallenge: z.string().min(43).max(128),
+  scopes: z.array(deviceScopeSchema).min(1).max(8),
+});
+export const exchangeDeviceAuthorizationRequestSchema = z.object({
+  codeVerifier: z.string().min(43).max(128),
+});
+export const approveDeviceAuthorizationRequestSchema = z.object({
+  userCode: z.string().trim().min(6).max(16),
+});
+export const deviceAuthorizationResponseSchema = z.object({
+  authorizationId: z.string().uuid(),
+  userCode: z.string(),
+  verificationUri: z.url(),
+  expiresAt: z.iso.datetime(),
+  intervalSeconds: z.number().int().positive(),
+});
+export const deviceSessionSchema = z.object({
+  id: z.string().uuid(),
+  deviceName: z.string(),
+  clientName: z.string(),
+  scopes: z.array(deviceScopeSchema),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  lastUsedAt: z.iso.datetime().nullable(),
+});
+
 export const sessionUserSchema = z.object({
   id: z.string().min(1),
   email: z.email().nullable(),
@@ -301,6 +336,14 @@ export type SessionExchangeRequest = z.infer<
 >;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 export type SessionUser = z.infer<typeof sessionUserSchema>;
+export type DeviceScope = z.infer<typeof deviceScopeSchema>;
+export type CreateDeviceAuthorizationRequest = z.infer<
+  typeof createDeviceAuthorizationRequestSchema
+>;
+export type DeviceAuthorizationResponse = z.infer<
+  typeof deviceAuthorizationResponseSchema
+>;
+export type DeviceSession = z.infer<typeof deviceSessionSchema>;
 export type UpdateProfileRequest = z.infer<typeof updateProfileRequestSchema>;
 export type CreateVaultRequest = z.infer<typeof createVaultRequestSchema>;
 export type VaultDto = z.infer<typeof vaultDtoSchema>;

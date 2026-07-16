@@ -6,6 +6,9 @@ import type {
   CreateProjectRequest,
   CreateEnvironmentRequest,
   CreateVariableRequest,
+  CreateDeviceAuthorizationRequest,
+  DeviceAuthorizationResponse,
+  DeviceSession,
   EnvironmentDto,
   ImportEnvironmentRequest,
   ImportEnvironmentResponse,
@@ -201,6 +204,40 @@ export class EnvaultClient {
         `/api/v1/environments/${environmentId}/bulk`,
         { method: "POST", body: JSON.stringify(input) },
       ),
+  };
+
+  public readonly devices = {
+    createAuthorization: (input: CreateDeviceAuthorizationRequest) =>
+      this.request<DeviceAuthorizationResponse>(
+        "/api/v1/device-authorizations",
+        {
+          method: "POST",
+          body: JSON.stringify(input),
+        },
+      ),
+    authorizationStatus: (authorizationId: string) =>
+      this.request<{
+        status: "pending" | "approved" | "used";
+        expiresAt: string;
+      }>(`/api/v1/device-authorizations/${authorizationId}`),
+    exchange: (authorizationId: string, codeVerifier: string) =>
+      this.request<
+        | { status: "pending" }
+        | {
+            status: "authorized";
+            accessToken: string;
+            session: DeviceSession;
+          }
+      >(`/api/v1/device-authorizations/${authorizationId}/exchange`, {
+        method: "POST",
+        body: JSON.stringify({ codeVerifier }),
+      }),
+    listSessions: () =>
+      this.request<DeviceSession[]>("/api/v1/device-sessions"),
+    revokeSession: (sessionId: string) =>
+      this.request<{ revoked: true }>(`/api/v1/device-sessions/${sessionId}`, {
+        method: "DELETE",
+      }),
   };
 
   public async request<T>(path: string, init: RequestInit = {}): Promise<T> {

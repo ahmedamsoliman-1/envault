@@ -44,6 +44,15 @@ export function getMfaConfiguration() {
   };
 }
 
+export function getDeviceConfiguration() {
+  ensureLocalEnvironmentLoaded();
+  const environment = parseServerEnvironment(process.env);
+  return {
+    authorizationTtlSeconds: environment.DEVICE_AUTHORIZATION_TTL_SECONDS,
+    sessionMaxAgeSeconds: environment.DEVICE_SESSION_MAX_AGE_SECONDS,
+  };
+}
+
 export function getAdminAuth() {
   ensureLocalEnvironmentLoaded();
   const environment = parseServerEnvironment(process.env);

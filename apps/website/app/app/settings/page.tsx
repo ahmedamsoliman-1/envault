@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { DeviceSessions } from "@/components/devices/device-sessions";
 import { SecuritySettings } from "@/components/settings/security-settings";
 import { VaultManager } from "@/components/vault/vault-manager";
 import { getSessionUser } from "@/lib/session";
@@ -37,6 +38,9 @@ export default async function SettingsPage() {
           <VaultManager />
         </div>
         <SecuritySettings />
+        <div className="mt-6">
+          <DeviceSessions />
+        </div>
       </section>
     </AppShell>
   );

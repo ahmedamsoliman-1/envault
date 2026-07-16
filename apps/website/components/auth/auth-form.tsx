@@ -23,7 +23,13 @@ type AuthMode = "login" | "register" | "forgot-password";
 
 const apiClient = new EnvaultClient({ baseUrl: "" });
 
-export function AuthForm({ mode }: { mode: AuthMode }) {
+export function AuthForm({
+  mode,
+  destination = "/app/dashboard",
+}: {
+  mode: AuthMode;
+  destination?: string;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +52,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         );
         setPendingIdToken(null);
         setMfaCode("");
-        router.push("/app/dashboard");
+        router.push(destination);
         router.refresh();
         return;
       }
@@ -77,7 +83,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         return;
       }
 
-      router.push("/app/dashboard");
+      router.push(destination);
       router.refresh();
     } catch (caughtError) {
       if (
@@ -125,7 +131,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         false,
         verified.passkeyProof,
       );
-      router.push("/app/dashboard");
+      router.push(destination);
       router.refresh();
     } catch (error) {
       await signOut(getClientAuth()).catch(() => undefined);

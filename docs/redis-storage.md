@@ -32,6 +32,12 @@ Every key is isolated below the versioned `envault:v1:` namespace:
   WebAuthn challenge.
 - `envault:v1:passkey-proof:{proofId}` stores a two-minute, one-use bridge from
   verified WebAuthn authentication to Firebase session creation.
+- `envault:v1:device-authorization:{authorizationId}` stores a short-lived,
+  PKCE-bound browser approval request.
+- `envault:v1:device-session:{sessionId}` stores a scoped, revocable external
+  client session.
+- `envault:v1:device-token:{tokenHash}` maps a hashed bearer token to its
+  device session.
 
 Vault mutations use a Lua compare-and-set operation. A mutation reads the
 aggregate, applies domain changes, then replaces it only when the stored value
