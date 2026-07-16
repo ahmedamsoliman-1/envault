@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { ActionDialog, ConfirmDialog } from "@/components/ui/action-dialog";
 import { VariableImportDialog } from "@/components/variables/variable-import-dialog";
 import { getUserFacingError } from "@/lib/user-errors";
+import { filterVariables, type ModifiedFilter } from "@/lib/variable-filters";
 import { getActiveVaultKey, getVaultKeyState } from "@/lib/vault-key-store";
 
 const client = new EnvaultClient({ baseUrl: "" });
@@ -78,6 +79,8 @@ export function VariableWorkspace({
   const [visibilityFilter, setVisibilityFilter] = useState<
     "all" | VariableDto["visibility"]
   >("all");
+  const [tagFilter, setTagFilter] = useState("all");
+  const [modifiedFilter, setModifiedFilter] = useState<ModifiedFilter>("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkAction, setBulkAction] = useState<BulkAction>("visibility");
@@ -87,16 +90,21 @@ export function VariableWorkspace({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const filteredVariables = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase();
-    return variables.filter(
-      (variable) =>
-        (visibilityFilter === "all" ||
-          variable.visibility === visibilityFilter) &&
-        (!query ||
-          variable.key.toLocaleLowerCase().includes(query) ||
-          variable.tags.some((tag) => tag.toLocaleLowerCase().includes(query))),
-    );
-  }, [search, variables, visibilityFilter]);
+    return filterVariables(variables, {
+      search,
+      visibility: visibilityFilter,
+      tag: tagFilter,
+      modified: modifiedFilter,
+    });
+  }, [modifiedFilter, search, tagFilter, variables, visibilityFilter]);
+
+  const availableTags = useMemo(
+    () =>
+      [...new Set(variables.flatMap((variable) => variable.tags))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [variables],
+  );
 
   useEffect(() => {
     void client.variables
@@ -127,7 +135,11 @@ export function VariableWorkspace({
         target?.tagName === "INPUT" ||
         target?.tagName === "TEXTAREA" ||
         target?.tagName === "SELECT";
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "k"
+      ) {
         event.preventDefault();
         setCommandOpen(true);
         return;
@@ -595,6 +607,30 @@ export function VariableWorkspace({
             <option value="protected">Protected</option>
             <option value="plain">Plain</option>
           </select>
+          <select
+            className="rounded-xl border bg-[var(--surface)] px-3.5 py-2.5 text-sm"
+            onChange={(event) => setTagFilter(event.target.value)}
+            value={tagFilter}
+          >
+            <option value="all">All tags</option>
+            {availableTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded-xl border bg-[var(--surface)] px-3.5 py-2.5 text-sm"
+            onChange={(event) =>
+              setModifiedFilter(event.target.value as ModifiedFilter)
+            }
+            value={modifiedFilter}
+          >
+            <option value="all">Any modification date</option>
+            <option value="today">Modified today</option>
+            <option value="week">Modified this week</option>
+            <option value="month">Modified this month</option>
+          </select>
           <button
             className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
             disabled={pending}
@@ -648,7 +684,7 @@ export function VariableWorkspace({
             type="button"
           >
             <Command className="size-4" />
-            <span className="hidden xl:inline">⌘K</span>
+            <span className="hidden xl:inline">⇧⌘K</span>
           </button>
         </div>
       ) : null}

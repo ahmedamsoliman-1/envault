@@ -1656,15 +1656,19 @@ Keep the project runnable after every implementation phase.
 
 ## Phase 6 — Productivity
 
-* Dotenv parser.
-* Import preview.
-* Import execution.
-* Export.
-* Bulk actions.
-* Search.
-* Filters.
-* Keyboard shortcuts.
-* Command palette.
+- [x] Dotenv parser.
+- [x] Import preview.
+- [x] Import execution.
+- [x] Export.
+- [x] Bulk actions.
+- [x] Search.
+- [x] Filters.
+- [x] Keyboard shortcuts.
+- [x] Command palette.
+
+Phase 6 is complete. Variable workspaces support visibility, tag and recent
+modification filters; keyboard-first creation, search and export workflows; an
+environment command menu; and an application-wide command palette.
 
 ## Phase 7 — Synchronization safety
 

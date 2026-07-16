@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { EnvaultLogo } from "@/components/brand/envault-logo";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
+import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
 import { VaultQuickControl } from "@/components/vault/vault-quick-control";
 
 const navigation = [
@@ -102,6 +103,7 @@ export function AppShell({
             <h1 className="text-base font-semibold">{title}</h1>
           </div>
           <div className="hidden items-center gap-2 lg:flex">
+            <GlobalCommandPalette />
             <VaultQuickControl />
             {actions}
           </div>

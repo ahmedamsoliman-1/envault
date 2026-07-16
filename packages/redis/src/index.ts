@@ -8,17 +8,9 @@ export function envaultRedisKey(...parts: string[]) {
 
 export interface EnvaultRedis {
   get<T>(key: string): Promise<T | null>;
-  set(
-    key: string,
-    value: unknown,
-    options?: { ex?: number },
-  ): Promise<unknown>;
+  set(key: string, value: unknown, options?: { ex?: number }): Promise<unknown>;
   del(key: string): Promise<number>;
-  eval(
-    script: string,
-    keys: string[],
-    args: string[],
-  ): Promise<unknown>;
+  eval(script: string, keys: string[], args: string[]): Promise<unknown>;
 }
 
 let client: EnvaultRedis | null = null;
