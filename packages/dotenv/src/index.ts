@@ -339,3 +339,75 @@ export function serializeDotenv(entries: readonly DotenvEntry[]): string {
     .map(({ key, value }) => `${key}=${serializeValue(value)}`)
     .join("\n");
 }
+
+export type EnvironmentExportFormat =
+  "dotenv" | "json" | "shell" | "docker-compose" | "kubernetes-secret";
+
+export interface EnvironmentExportOptions {
+  kubernetesSecretName?: string;
+}
+
+function shellQuote(value: string): string {
+  if (value === "") return "''";
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/u.test(value)) return value;
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function yamlDoubleQuote(value: string): string {
+  return JSON.stringify(value);
+}
+
+function base64Encode(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function kubernetesName(value: string): string {
+  const normalized = value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9.-]+/gu, "-")
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/gu, "")
+    .slice(0, 253);
+  return normalized || "envault-environment";
+}
+
+export function serializeEnvironment(
+  entries: readonly DotenvEntry[],
+  format: EnvironmentExportFormat,
+  options: EnvironmentExportOptions = {},
+): string {
+  switch (format) {
+    case "dotenv":
+      return serializeDotenv(entries);
+    case "json":
+      return JSON.stringify(
+        Object.fromEntries(entries.map(({ key, value }) => [key, value])),
+        null,
+        2,
+      );
+    case "shell":
+      return entries
+        .map(({ key, value }) => `export ${key}=${shellQuote(value)}`)
+        .join("\n");
+    case "docker-compose":
+      return [
+        "environment:",
+        ...entries.map(
+          ({ key, value }) => `  ${key}: ${yamlDoubleQuote(value)}`,
+        ),
+      ].join("\n");
+    case "kubernetes-secret":
+      return [
+        "apiVersion: v1",
+        "kind: Secret",
+        "metadata:",
+        `  name: ${kubernetesName(options.kubernetesSecretName ?? "")}`,
+        "type: Opaque",
+        "data:",
+        ...entries.map(({ key, value }) => `  ${key}: ${base64Encode(value)}`),
+      ].join("\n");
+  }
+}

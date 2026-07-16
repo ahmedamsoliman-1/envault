@@ -1,8 +1,12 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import type {
+  BulkEnvironmentRequest,
   CreateEnvironmentRequest,
   CreateVariableRequest,
+  ImportEnvironmentRequest,
   UpdateEnvironmentRequest,
   UpdateVariableRequest,
   EnvironmentDto,
@@ -36,6 +40,20 @@ interface VariableDocument {
   visibility: VariableDto["visibility"];
   tags: string[];
   description: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+interface ImportOperationDocument {
+  ownerId: string;
+  vaultId: string;
+  environmentId: string;
+  kind: "environment-import" | "environment-bulk";
+  fingerprint: string;
+  variableIds?: string[];
+  updatedIds?: string[];
+  deletedIds?: string[];
+  resultingVersion: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -245,6 +263,390 @@ export class FirestoreEnvironmentRepository {
         version: currentVersion + 1,
       };
     });
+  }
+
+  public async importVariables(
+    ownerId: string,
+    environmentId: string,
+    input: ImportEnvironmentRequest,
+  ) {
+    const vaultId = await this.#vaultId(ownerId);
+    if (!vaultId) return null;
+
+    const vaultReference = this.firestore.collection("vaults").doc(vaultId);
+    const environmentReference = vaultReference
+      .collection("environments")
+      .doc(environmentId);
+    const variablesCollection = vaultReference.collection("variables");
+    const operationReference = vaultReference
+      .collection("operations")
+      .doc(input.operationId);
+    const fingerprint = createHash("sha256")
+      .update(
+        JSON.stringify({
+          environmentId,
+          expectedVersion: input.expectedVersion,
+          variables: input.variables,
+        }),
+      )
+      .digest("hex");
+
+    const transactionResult = await this.firestore.runTransaction(
+      async (transaction) => {
+        const [environment, operation, existingVariables] = await Promise.all([
+          transaction.get(environmentReference),
+          transaction.get(operationReference),
+          transaction.get(
+            variablesCollection.where("environmentId", "==", environmentId),
+          ),
+        ]);
+
+        if (!environment.exists || environment.get("ownerId") !== ownerId) {
+          return null;
+        }
+
+        if (operation.exists) {
+          const previous = operation.data() as ImportOperationDocument;
+          if (
+            previous.ownerId !== ownerId ||
+            previous.environmentId !== environmentId ||
+            previous.kind !== "environment-import" ||
+            previous.fingerprint !== fingerprint
+          ) {
+            return { idempotencyConflict: true as const };
+          }
+          return {
+            replayed: true as const,
+            variableIds: previous.variableIds,
+            version: previous.resultingVersion,
+          };
+        }
+
+        const currentVersion = environment.get("version") as number;
+        if (currentVersion !== input.expectedVersion) {
+          return { conflictVersion: currentVersion };
+        }
+
+        const existingByKey = new Map(
+          existingVariables.docs.map((document) => [
+            document.get("normalizedKey") as string,
+            document,
+          ]),
+        );
+        const now = Timestamp.now();
+        const imported: Array<{ id: string; value: VariableDocument }> = [];
+
+        for (const variable of input.variables) {
+          const existing = existingByKey.get(variable.key.toUpperCase());
+          if (existing && existing.id !== variable.id) {
+            return { identityConflict: true as const };
+          }
+
+          const reference = variablesCollection.doc(variable.id);
+          if (existing) {
+            const previous = existing.data() as VariableDocument;
+            const updated: VariableDocument = {
+              ...previous,
+              key: variable.key,
+              normalizedKey: variable.key.toUpperCase(),
+              encryptedValue: variable.encryptedValue,
+              encryptionIv: variable.encryptionIv,
+              encryptionVersion: variable.encryptionVersion,
+              visibility: variable.visibility,
+              tags: variable.tags,
+              description: variable.description,
+              updatedAt: now,
+            };
+            transaction.create(vaultReference.collection("revisions").doc(), {
+              ownerId,
+              vaultId,
+              projectId: previous.projectId,
+              environmentId,
+              variableId: variable.id,
+              action: "updated",
+              snapshot: previous,
+              createdAt: now,
+              updatedAt: now,
+            });
+            transaction.update(reference, { ...updated });
+            imported.push({ id: variable.id, value: updated });
+          } else {
+            const created: VariableDocument = {
+              ownerId,
+              vaultId,
+              projectId: variable.projectId,
+              environmentId,
+              key: variable.key,
+              normalizedKey: variable.key.toUpperCase(),
+              encryptedValue: variable.encryptedValue,
+              encryptionIv: variable.encryptionIv,
+              encryptionVersion: variable.encryptionVersion,
+              visibility: variable.visibility,
+              tags: variable.tags,
+              description: variable.description,
+              createdAt: now,
+              updatedAt: now,
+            };
+            transaction.create(reference, created);
+            transaction.create(vaultReference.collection("revisions").doc(), {
+              ownerId,
+              vaultId,
+              projectId: variable.projectId,
+              environmentId,
+              variableId: variable.id,
+              action: "created",
+              snapshot: created,
+              createdAt: now,
+              updatedAt: now,
+            });
+            imported.push({ id: variable.id, value: created });
+          }
+        }
+
+        const resultingVersion = currentVersion + 1;
+        transaction.update(environmentReference, {
+          version: resultingVersion,
+          contentRevision: crypto.randomUUID(),
+          updatedAt: now,
+        });
+        transaction.create(operationReference, {
+          ownerId,
+          vaultId,
+          environmentId,
+          kind: "environment-import",
+          fingerprint,
+          variableIds: imported.map(({ id }) => id),
+          resultingVersion,
+          createdAt: now,
+          updatedAt: now,
+        } satisfies ImportOperationDocument);
+
+        return {
+          replayed: false as const,
+          variables: imported.map(({ id, value }) => variableDto(id, value)),
+          version: resultingVersion,
+        };
+      },
+    );
+
+    if (
+      !transactionResult ||
+      "conflictVersion" in transactionResult ||
+      "idempotencyConflict" in transactionResult ||
+      "identityConflict" in transactionResult ||
+      !transactionResult.replayed
+    ) {
+      return transactionResult;
+    }
+
+    const replayedVariables = await Promise.all(
+      (transactionResult.variableIds ?? []).map((id) =>
+        variablesCollection.doc(id).get(),
+      ),
+    );
+    return {
+      replayed: true as const,
+      variables: replayedVariables
+        .filter((snapshot) => snapshot.exists)
+        .map((snapshot) =>
+          variableDto(snapshot.id, snapshot.data() as VariableDocument),
+        ),
+      version: transactionResult.version,
+    };
+  }
+
+  public async bulkVariables(
+    ownerId: string,
+    environmentId: string,
+    input: BulkEnvironmentRequest,
+  ) {
+    const vaultId = await this.#vaultId(ownerId);
+    if (!vaultId) return null;
+
+    const vaultReference = this.firestore.collection("vaults").doc(vaultId);
+    const environmentReference = vaultReference
+      .collection("environments")
+      .doc(environmentId);
+    const variablesCollection = vaultReference.collection("variables");
+    const operationReference = vaultReference
+      .collection("operations")
+      .doc(input.operationId);
+    const fingerprint = createHash("sha256")
+      .update(JSON.stringify({ environmentId, ...input }))
+      .digest("hex");
+
+    const transactionResult = await this.firestore.runTransaction(
+      async (transaction) => {
+        const [environment, operation, variables] = await Promise.all([
+          transaction.get(environmentReference),
+          transaction.get(operationReference),
+          transaction.get(
+            variablesCollection.where("environmentId", "==", environmentId),
+          ),
+        ]);
+
+        if (!environment.exists || environment.get("ownerId") !== ownerId) {
+          return null;
+        }
+        if (operation.exists) {
+          const previous = operation.data() as ImportOperationDocument;
+          if (
+            previous.ownerId !== ownerId ||
+            previous.environmentId !== environmentId ||
+            previous.kind !== "environment-bulk" ||
+            previous.fingerprint !== fingerprint
+          ) {
+            return { idempotencyConflict: true as const };
+          }
+          return {
+            replayed: true as const,
+            updatedIds: previous.updatedIds ?? [],
+            deletedIds: previous.deletedIds ?? [],
+            version: previous.resultingVersion,
+          };
+        }
+
+        const currentVersion = environment.get("version") as number;
+        if (currentVersion !== input.expectedVersion) {
+          return { conflictVersion: currentVersion };
+        }
+
+        const byId = new Map(
+          variables.docs.map((document) => [document.id, document]),
+        );
+        const deleteIds = new Set(input.deleteIds);
+        const updateById = new Map(
+          input.updates.map((update) => [update.id, update]),
+        );
+        const requestedIds = new Set([...deleteIds, ...updateById.keys()]);
+        if (
+          [...requestedIds].some((id) => {
+            const document = byId.get(id);
+            return !document || document.get("ownerId") !== ownerId;
+          })
+        ) {
+          return { missingVariable: true as const };
+        }
+
+        const finalKeys = new Map<string, string>();
+        for (const document of variables.docs) {
+          if (deleteIds.has(document.id)) continue;
+          const update = updateById.get(document.id);
+          const normalized = (
+            update?.key ?? (document.get("key") as string)
+          ).toUpperCase();
+          const collision = finalKeys.get(normalized);
+          if (collision && collision !== document.id) {
+            return { duplicate: true as const };
+          }
+          finalKeys.set(normalized, document.id);
+        }
+
+        const now = Timestamp.now();
+        const updated: Array<{ id: string; value: VariableDocument }> = [];
+
+        for (const update of input.updates) {
+          const document = byId.get(update.id);
+          if (!document) return { missingVariable: true as const };
+          const previous = document.data() as VariableDocument;
+          const value: VariableDocument = {
+            ...previous,
+            ...(update.key === undefined
+              ? {}
+              : { key: update.key, normalizedKey: update.key.toUpperCase() }),
+            ...(update.visibility === undefined
+              ? {}
+              : { visibility: update.visibility }),
+            ...(update.tags === undefined ? {} : { tags: update.tags }),
+            updatedAt: now,
+          };
+          transaction.create(vaultReference.collection("revisions").doc(), {
+            ownerId,
+            vaultId,
+            projectId: previous.projectId,
+            environmentId,
+            variableId: update.id,
+            action: "updated",
+            snapshot: previous,
+            createdAt: now,
+            updatedAt: now,
+          });
+          transaction.update(document.ref, { ...value });
+          updated.push({ id: update.id, value });
+        }
+
+        for (const id of input.deleteIds) {
+          const document = byId.get(id);
+          if (!document) return { missingVariable: true as const };
+          const previous = document.data() as VariableDocument;
+          transaction.create(vaultReference.collection("revisions").doc(), {
+            ownerId,
+            vaultId,
+            projectId: previous.projectId,
+            environmentId,
+            variableId: id,
+            action: "deleted",
+            snapshot: previous,
+            createdAt: now,
+            updatedAt: now,
+          });
+          transaction.delete(document.ref);
+        }
+
+        const resultingVersion = currentVersion + 1;
+        transaction.update(environmentReference, {
+          version: resultingVersion,
+          contentRevision: crypto.randomUUID(),
+          updatedAt: now,
+        });
+        transaction.create(operationReference, {
+          ownerId,
+          vaultId,
+          environmentId,
+          kind: "environment-bulk",
+          fingerprint,
+          updatedIds: updated.map(({ id }) => id),
+          deletedIds: input.deleteIds,
+          resultingVersion,
+          createdAt: now,
+          updatedAt: now,
+        } satisfies ImportOperationDocument);
+
+        return {
+          replayed: false as const,
+          variables: updated.map(({ id, value }) => variableDto(id, value)),
+          deletedIds: input.deleteIds,
+          version: resultingVersion,
+        };
+      },
+    );
+
+    if (
+      !transactionResult ||
+      "conflictVersion" in transactionResult ||
+      "idempotencyConflict" in transactionResult ||
+      "missingVariable" in transactionResult ||
+      "duplicate" in transactionResult ||
+      !transactionResult.replayed
+    ) {
+      return transactionResult;
+    }
+
+    const replayedVariables = await Promise.all(
+      transactionResult.updatedIds.map((id) =>
+        variablesCollection.doc(id).get(),
+      ),
+    );
+    return {
+      replayed: true as const,
+      variables: replayedVariables
+        .filter((snapshot) => snapshot.exists)
+        .map((snapshot) =>
+          variableDto(snapshot.id, snapshot.data() as VariableDocument),
+        ),
+      deletedIds: transactionResult.deletedIds,
+      version: transactionResult.version,
+    };
   }
 
   public async updateEnvironment(

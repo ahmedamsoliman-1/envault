@@ -189,6 +189,86 @@ export const deleteVersionRequestSchema = z.object({
   expectedVersion: z.number().int().nonnegative(),
 });
 
+export const importVariableItemSchema = createVariableRequestSchema.omit({
+  expectedVersion: true,
+});
+export const importEnvironmentRequestSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+    variables: z.array(importVariableItemSchema).min(1).max(100),
+  })
+  .superRefine((value, context) => {
+    const ids = new Set<string>();
+    const keys = new Set<string>();
+    value.variables.forEach((variable, index) => {
+      const normalizedKey = variable.key.toUpperCase();
+      if (ids.has(variable.id)) {
+        context.addIssue({
+          code: "custom",
+          message: "Variable IDs must be unique within an import chunk.",
+          path: ["variables", index, "id"],
+        });
+      }
+      if (keys.has(normalizedKey)) {
+        context.addIssue({
+          code: "custom",
+          message: "Variable keys must be unique within an import chunk.",
+          path: ["variables", index, "key"],
+        });
+      }
+      ids.add(variable.id);
+      keys.add(normalizedKey);
+    });
+  });
+export const importEnvironmentResponseSchema = z.object({
+  variables: z.array(variableDtoSchema),
+  version: z.number().int().nonnegative(),
+  replayed: z.boolean(),
+});
+
+export const bulkVariableUpdateSchema = z
+  .object({
+    id: z.string().min(1),
+    key: createVariableRequestSchema.shape.key.optional(),
+    visibility: variableDtoSchema.shape.visibility.optional(),
+    tags: variableDtoSchema.shape.tags.optional(),
+  })
+  .refine(
+    (value) =>
+      value.key !== undefined ||
+      value.visibility !== undefined ||
+      value.tags !== undefined,
+  );
+export const bulkEnvironmentRequestSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+    updates: z.array(bulkVariableUpdateSchema).max(100).default([]),
+    deleteIds: z.array(z.string().min(1)).max(100).default([]),
+  })
+  .superRefine((value, context) => {
+    if (value.updates.length + value.deleteIds.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "At least one bulk mutation is required.",
+      });
+    }
+    const ids = [...value.updates.map(({ id }) => id), ...value.deleteIds];
+    if (new Set(ids).size !== ids.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Variables may only appear once in a bulk mutation.",
+      });
+    }
+  });
+export const bulkEnvironmentResponseSchema = z.object({
+  variables: z.array(variableDtoSchema),
+  deletedIds: z.array(z.string()),
+  version: z.number().int().nonnegative(),
+  replayed: z.boolean(),
+});
+
 export function createSuccessResponse<T>(data: T, requestId: string) {
   return { data, meta: { requestId } };
 }
@@ -224,3 +304,17 @@ export type UpdateEnvironmentRequest = z.infer<
 export type VariableDto = z.infer<typeof variableDtoSchema>;
 export type CreateVariableRequest = z.infer<typeof createVariableRequestSchema>;
 export type UpdateVariableRequest = z.infer<typeof updateVariableRequestSchema>;
+export type ImportVariableItem = z.infer<typeof importVariableItemSchema>;
+export type ImportEnvironmentRequest = z.infer<
+  typeof importEnvironmentRequestSchema
+>;
+export type ImportEnvironmentResponse = z.infer<
+  typeof importEnvironmentResponseSchema
+>;
+export type BulkVariableUpdate = z.infer<typeof bulkVariableUpdateSchema>;
+export type BulkEnvironmentRequest = z.infer<
+  typeof bulkEnvironmentRequestSchema
+>;
+export type BulkEnvironmentResponse = z.infer<
+  typeof bulkEnvironmentResponseSchema
+>;

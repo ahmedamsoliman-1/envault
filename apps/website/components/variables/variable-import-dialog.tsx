@@ -1,7 +1,7 @@
 "use client";
 
-import { EnvaultClient } from "@envault/api-client";
-import type { VariableDto } from "@envault/api-contract";
+import { EnvaultApiError, EnvaultClient } from "@envault/api-client";
+import type { ImportVariableItem, VariableDto } from "@envault/api-contract";
 import { decryptVariableValue, encryptVariableValue } from "@envault/crypto";
 import { getBrowserCryptoProvider } from "@envault/crypto/browser";
 import {
@@ -61,6 +61,7 @@ export function VariableImportDialog({
   const [policy, setPolicy] = useState<ImportPolicy>("overwrite");
   const [previewing, setPreviewing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState({ completed: 0, total: 0 });
 
   const counts = useMemo(() => {
     const result = preview.reduce<Record<ImportClassification, number>>(
@@ -83,6 +84,7 @@ export function VariableImportDialog({
     setDiagnostics([]);
     setSelected(new Set());
     setPolicy("overwrite");
+    setProgress({ completed: 0, total: 0 });
   }
 
   function closeImport() {
@@ -245,10 +247,12 @@ export function VariableImportDialog({
     }
 
     setImporting(true);
+    setProgress({ completed: 0, total: chosen.length });
     let currentVersion = version;
     let currentVariables = [...variables];
 
     try {
+      const encryptedVariables: ImportVariableItem[] = [];
       for (const item of chosen) {
         const variableId = item.existing?.id ?? crypto.randomUUID();
         const encrypted = await encryptVariableValue(
@@ -263,34 +267,57 @@ export function VariableImportDialog({
             encryptionVersion: 1,
           },
         );
+        encryptedVariables.push({
+          id: variableId,
+          projectId,
+          key: item.entry.key.toUpperCase(),
+          encryptedValue: encrypted.ciphertext,
+          encryptionIv: encrypted.iv,
+          encryptionVersion: 1,
+          visibility: item.existing?.visibility ?? "secret",
+          tags: item.existing?.tags ?? [],
+          description: item.existing?.description ?? null,
+        });
+      }
 
-        if (item.existing) {
-          const result = await client.variables.update(item.existing.id, {
-            expectedVersion: currentVersion,
-            encryptedValue: encrypted.ciphertext,
-            encryptionIv: encrypted.iv,
-            encryptionVersion: 1,
-          });
-          currentVersion = result.version;
-          currentVariables = currentVariables.map((variable) =>
-            variable.id === result.variable.id ? result.variable : variable,
-          );
-        } else {
-          const result = await client.variables.create(environmentId, {
-            id: variableId,
-            projectId,
-            key: item.entry.key.toUpperCase(),
-            encryptedValue: encrypted.ciphertext,
-            encryptionIv: encrypted.iv,
-            encryptionVersion: 1,
-            visibility: "secret",
-            tags: [],
-            description: null,
-            expectedVersion: currentVersion,
-          });
-          currentVersion = result.version;
-          currentVariables = [result.variable, ...currentVariables];
+      for (let index = 0; index < encryptedVariables.length; index += 50) {
+        const chunk = encryptedVariables.slice(index, index + 50);
+        const operationId = crypto.randomUUID();
+        let result;
+
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            result = await client.imports.commit(environmentId, {
+              operationId,
+              expectedVersion: currentVersion,
+              variables: chunk,
+            });
+            break;
+          } catch (error) {
+            const retryable =
+              !(error instanceof EnvaultApiError) || error.status >= 500;
+            if (!retryable || attempt === 1) throw error;
+          }
         }
+        if (!result) throw new Error("Import chunk did not return a result.");
+
+        currentVersion = result.version;
+        const importedById = new Map(
+          result.variables.map((variable) => [variable.id, variable]),
+        );
+        currentVariables = [
+          ...result.variables.filter(
+            (variable) =>
+              !currentVariables.some((current) => current.id === variable.id),
+          ),
+          ...currentVariables.map(
+            (variable) => importedById.get(variable.id) ?? variable,
+          ),
+        ];
+        setProgress({
+          completed: Math.min(index + chunk.length, encryptedVariables.length),
+          total: encryptedVariables.length,
+        });
       }
 
       onImported(currentVariables, currentVersion);
@@ -342,7 +369,7 @@ export function VariableImportDialog({
                 type="button"
               >
                 {importing
-                  ? "Encrypting and importing…"
+                  ? `Importing ${progress.completed}/${progress.total}…`
                   : `Import ${selected.size} selected`}
               </button>
             ) : (
@@ -416,6 +443,24 @@ export function VariableImportDialog({
 
           {preview.length > 0 ? (
             <>
+              {importing && progress.total > 0 ? (
+                <div className="rounded-xl border p-3">
+                  <div className="flex justify-between text-xs">
+                    <span>Secure import progress</span>
+                    <span>
+                      {progress.completed} / {progress.total}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--app-background)]">
+                    <div
+                      className="h-full rounded-full bg-indigo-600 transition-[width]"
+                      style={{
+                        width: `${(progress.completed / progress.total) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : null}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {(Object.keys(counts) as ImportClassification[]).map(
                   (classification) => (

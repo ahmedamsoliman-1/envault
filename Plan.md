@@ -1711,29 +1711,29 @@ after every stage.
 - [x] Encrypt every imported plaintext value locally before sending mutations to the API.
 - [x] Ensure plaintext import content is never persisted or logged.
 - [x] Commit imports with expected environment versions.
-- [ ] Protect import retries with idempotency keys and operation records.
-- [ ] Chunk large imports and report progress safely.
+- [x] Protect import retries with idempotency keys and operation records.
+- [x] Chunk large imports and report progress safely.
 
 ### Stage C — Local export workflow
 
-- [ ] Export decrypted values locally as `.env`.
-- [ ] Export decrypted values locally as JSON.
-- [ ] Export decrypted values locally as shell `export` statements.
-- [ ] Export decrypted values locally as a Docker Compose environment snippet.
-- [ ] Export decrypted values locally as Kubernetes Secret YAML.
-- [ ] Explain that Kubernetes base64 values are encoded rather than encrypted.
-- [ ] Support copying and downloading exports without sending plaintext to the server.
+- [x] Export decrypted values locally as `.env`.
+- [x] Export decrypted values locally as JSON.
+- [x] Export decrypted values locally as shell `export` statements.
+- [x] Export decrypted values locally as a Docker Compose environment snippet.
+- [x] Export decrypted values locally as Kubernetes Secret YAML.
+- [x] Explain that Kubernetes base64 values are encoded rather than encrypted.
+- [x] Support copying and downloading exports without sending plaintext to the server.
 
 ### Stage D — Variable selection and bulk operations
 
-- [ ] Add variable row selection and select-all behavior.
-- [ ] Bulk delete selected variables.
-- [ ] Bulk change visibility.
-- [ ] Bulk add and remove tags.
-- [ ] Bulk add and remove key prefixes.
-- [ ] Bulk convert variable keys to uppercase.
-- [ ] Detect key collisions before applying transformations.
-- [ ] Apply bulk mutations with expected-version and idempotency protection.
+- [x] Add variable row selection and select-all behavior.
+- [x] Bulk delete selected variables.
+- [x] Bulk change visibility.
+- [x] Bulk add and remove tags.
+- [x] Bulk add and remove key prefixes.
+- [x] Bulk convert variable keys to uppercase.
+- [x] Detect key collisions before applying transformations.
+- [x] Apply bulk mutations with expected-version and idempotency protection.
 
 ### Stage E — Revision history and restoration
 
@@ -1757,9 +1757,9 @@ after every stage.
 ### Milestone acceptance criteria
 
 - [ ] Import parsing, preview and execution tests pass.
-- [ ] Imported plaintext is encrypted before any API request.
-- [ ] All export formats are generated locally.
-- [ ] Retried imports and bulk mutations do not duplicate changes.
+- [x] Imported plaintext is encrypted before any API request.
+- [x] All export formats are generated locally.
+- [x] Retried imports and bulk mutations do not duplicate changes.
 - [ ] Stale import, bulk and restoration writes return HTTP 409.
 - [ ] Revision history does not decrypt values while listing.
 - [ ] Activity records contain no secret material.

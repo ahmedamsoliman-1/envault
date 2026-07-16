@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseDotenv, serializeDotenv } from "./index";
+import { parseDotenv, serializeDotenv, serializeEnvironment } from "./index";
 
 describe("parseDotenv", () => {
   it("parses common assignments, comments, empty values, and shell exports", () => {
@@ -167,5 +167,38 @@ describe("serializeDotenv", () => {
     expect(result.entries.map(({ key, value }) => ({ key, value }))).toEqual(
       entries,
     );
+  });
+});
+
+describe("serializeEnvironment", () => {
+  const entries = [
+    { key: "API_URL", value: "https://api.example.com" },
+    { key: "MESSAGE", value: "hello world" },
+    { key: "UNICODE", value: "مرحباً" },
+  ];
+
+  it("serializes JSON and shell exports", () => {
+    expect(serializeEnvironment(entries, "json")).toContain(
+      '"MESSAGE": "hello world"',
+    );
+    expect(serializeEnvironment(entries, "shell")).toContain(
+      "export MESSAGE='hello world'",
+    );
+  });
+
+  it("serializes a Docker Compose environment mapping", () => {
+    expect(serializeEnvironment(entries, "docker-compose")).toBe(
+      'environment:\n  API_URL: "https://api.example.com"\n  MESSAGE: "hello world"\n  UNICODE: "مرحباً"',
+    );
+  });
+
+  it("serializes Kubernetes Secret YAML with encoded values", () => {
+    const result = serializeEnvironment(entries, "kubernetes-secret", {
+      kubernetesSecretName: "Production API",
+    });
+
+    expect(result).toContain("name: production-api");
+    expect(result).toContain("MESSAGE: aGVsbG8gd29ybGQ=");
+    expect(result).toContain("UNICODE: 2YXYsdit2KjYp9mL");
   });
 });

@@ -1,22 +1,30 @@
 "use client";
 
-import { EnvaultClient } from "@envault/api-client";
+import { EnvaultApiError, EnvaultClient } from "@envault/api-client";
 import type { VariableDto } from "@envault/api-contract";
 import { decryptVariableValue, encryptVariableValue } from "@envault/crypto";
 import { getBrowserCryptoProvider } from "@envault/crypto/browser";
-import { serializeDotenv } from "@envault/dotenv";
+import {
+  serializeEnvironment,
+  type DotenvEntry,
+  type EnvironmentExportFormat,
+} from "@envault/dotenv";
 import {
   Check,
+  Command,
   Copy,
   Eye,
   EyeOff,
   FileText,
+  Download,
   Pencil,
   Plus,
+  Search,
   Table2,
+  Tags,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { ActionDialog, ConfirmDialog } from "@/components/ui/action-dialog";
@@ -25,6 +33,14 @@ import { getUserFacingError } from "@/lib/user-errors";
 import { getActiveVaultKey, getVaultKeyState } from "@/lib/vault-key-store";
 
 const client = new EnvaultClient({ baseUrl: "" });
+type BulkAction =
+  | "delete"
+  | "visibility"
+  | "add-tag"
+  | "remove-tag"
+  | "add-prefix"
+  | "remove-prefix"
+  | "uppercase";
 
 export function VariableWorkspace({
   environmentId,
@@ -42,8 +58,11 @@ export function VariableWorkspace({
     useState<VariableDto["visibility"]>("secret");
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
-  const [view, setView] = useState<"table" | "dotenv">("table");
+  const [view, setView] = useState<"table" | "export">("table");
   const [dotenvContent, setDotenvContent] = useState<string | null>(null);
+  const [exportEntries, setExportEntries] = useState<DotenvEntry[]>([]);
+  const [exportFormat, setExportFormat] =
+    useState<EnvironmentExportFormat>("dotenv");
   const [dotenvLoading, setDotenvLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editingVariable, setEditingVariable] = useState<VariableDto | null>(
@@ -55,6 +74,29 @@ export function VariableWorkspace({
   const [editKey, setEditKey] = useState("");
   const [editValue, setEditValue] = useState("");
   const [actionPending, setActionPending] = useState(false);
+  const [search, setSearch] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState<
+    "all" | VariableDto["visibility"]
+  >("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkAction, setBulkAction] = useState<BulkAction>("visibility");
+  const [bulkValue, setBulkValue] = useState("secret");
+  const [bulkPending, setBulkPending] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredVariables = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return variables.filter(
+      (variable) =>
+        (visibilityFilter === "all" ||
+          variable.visibility === visibilityFilter) &&
+        (!query ||
+          variable.key.toLocaleLowerCase().includes(query) ||
+          variable.tags.some((tag) => tag.toLocaleLowerCase().includes(query))),
+    );
+  }, [search, variables, visibilityFilter]);
 
   useEffect(() => {
     void client.variables
@@ -73,9 +115,38 @@ export function VariableWorkspace({
   useEffect(
     () => () => {
       setDotenvContent(null);
+      setExportEntries([]);
     },
     [],
   );
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const editing =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT";
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen(true);
+        return;
+      }
+      if (editing || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "/") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setCreating(true);
+      } else if (event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        void openDotenvView();
+      }
+    }
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -255,8 +326,135 @@ export function VariableWorkspace({
     }
   }
 
+  async function executeBulkAction() {
+    const selectedVariables = variables.filter((variable) =>
+      selectedIds.has(variable.id),
+    );
+    if (selectedVariables.length === 0) return;
+
+    const updates = selectedVariables.map((variable) => {
+      switch (bulkAction) {
+        case "visibility":
+          return {
+            id: variable.id,
+            visibility: bulkValue as VariableDto["visibility"],
+          };
+        case "add-tag":
+          return {
+            id: variable.id,
+            tags: [...new Set([...variable.tags, bulkValue.trim()])].slice(
+              0,
+              30,
+            ),
+          };
+        case "remove-tag":
+          return {
+            id: variable.id,
+            tags: variable.tags.filter((tag) => tag !== bulkValue.trim()),
+          };
+        case "add-prefix":
+          return {
+            id: variable.id,
+            key: `${bulkValue.trim().toUpperCase()}${variable.key}`,
+          };
+        case "remove-prefix": {
+          const prefix = bulkValue.trim().toUpperCase();
+          return {
+            id: variable.id,
+            key: variable.key.startsWith(prefix)
+              ? variable.key.slice(prefix.length)
+              : variable.key,
+          };
+        }
+        case "uppercase":
+          return { id: variable.id, key: variable.key.toUpperCase() };
+        case "delete":
+          return { id: variable.id };
+      }
+    });
+
+    if (bulkAction !== "delete") {
+      const updateById = new Map(updates.map((update) => [update.id, update]));
+      const finalKeys = variables.map(
+        (variable) => updateById.get(variable.id)?.key ?? variable.key,
+      );
+      if (
+        finalKeys.some((key) => !key) ||
+        new Set(finalKeys.map((key) => key.toUpperCase())).size !==
+          finalKeys.length
+      ) {
+        toast.error(
+          "This transformation would create an empty or duplicate variable key.",
+        );
+        return;
+      }
+    }
+
+    setBulkPending(true);
+    let currentVersion = version;
+    let currentVariables = [...variables];
+    try {
+      for (let index = 0; index < selectedVariables.length; index += 50) {
+        const ids = new Set(
+          selectedVariables.slice(index, index + 50).map(({ id }) => id),
+        );
+        const operationId = crypto.randomUUID();
+        const request = {
+          operationId,
+          expectedVersion: currentVersion,
+          updates:
+            bulkAction === "delete"
+              ? []
+              : updates.filter((update) => ids.has(update.id)),
+          deleteIds:
+            bulkAction === "delete"
+              ? selectedVariables
+                  .filter((variable) => ids.has(variable.id))
+                  .map(({ id }) => id)
+              : [],
+        };
+        let result;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            result = await client.bulk.commit(environmentId, request);
+            break;
+          } catch (error) {
+            const retryable =
+              !(error instanceof EnvaultApiError) || error.status >= 500;
+            if (!retryable || attempt === 1) throw error;
+          }
+        }
+        if (!result) throw new Error("Bulk operation did not return a result.");
+        currentVersion = result.version;
+        const updatedById = new Map(
+          result.variables.map((variable) => [variable.id, variable]),
+        );
+        const deleted = new Set(result.deletedIds);
+        currentVariables = currentVariables
+          .filter((variable) => !deleted.has(variable.id))
+          .map((variable) => updatedById.get(variable.id) ?? variable);
+      }
+      setVariables(currentVariables);
+      setVersion(currentVersion);
+      setSelectedIds(new Set());
+      setRevealed({});
+      setBulkOpen(false);
+      toast.success(
+        `${selectedVariables.length} variable${selectedVariables.length === 1 ? "" : "s"} updated.`,
+      );
+    } catch (error) {
+      setVariables(currentVariables);
+      setVersion(currentVersion);
+      toast.error(
+        getUserFacingError(error, "The bulk operation could not be completed."),
+      );
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
   async function openDotenvView() {
-    setView("dotenv");
+    setView("export");
     setDotenvLoading(true);
     setDotenvContent(null);
     setCopied(false);
@@ -296,7 +494,8 @@ export function VariableWorkspace({
           ),
         })),
       );
-      setDotenvContent(serializeDotenv(entries));
+      setExportEntries(entries);
+      setDotenvContent(serializeEnvironment(entries, "dotenv"));
     } catch {
       toast.error("The .env view could not be decrypted.");
       setView("table");
@@ -309,6 +508,8 @@ export function VariableWorkspace({
   function closeDotenvView() {
     setView("table");
     setDotenvContent(null);
+    setExportEntries([]);
+    setExportFormat("dotenv");
     setCopied(false);
   }
 
@@ -330,7 +531,7 @@ export function VariableWorkspace({
           </button>
           <button
             className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-              view === "dotenv"
+              view === "export"
                 ? "bg-[var(--foreground)] text-[var(--background)]"
                 : "text-[var(--muted)]"
             }`}
@@ -338,7 +539,7 @@ export function VariableWorkspace({
             type="button"
           >
             <FileText className="size-4" />
-            .env
+            Export
           </button>
         </div>
         <div className="flex items-center gap-2">
@@ -403,34 +604,151 @@ export function VariableWorkspace({
           </button>
         </form>
       ) : null}
-      {view === "dotenv" ? (
+      {view === "table" ? (
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              ref={searchInputRef}
+              className="w-full rounded-xl border bg-[var(--surface)] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-indigo-500"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search keys or tags"
+              type="search"
+              value={search}
+            />
+          </div>
+          <select
+            className="rounded-xl border bg-[var(--surface)] px-3.5 py-2.5 text-sm"
+            onChange={(event) =>
+              setVisibilityFilter(
+                event.target.value as "all" | VariableDto["visibility"],
+              )
+            }
+            value={visibilityFilter}
+          >
+            <option value="all">All visibility</option>
+            <option value="secret">Secret</option>
+            <option value="protected">Protected</option>
+            <option value="plain">Plain</option>
+          </select>
+          {selectedIds.size > 0 ? (
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-xl border bg-[var(--surface)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--surface-hover)]"
+              onClick={() => setBulkOpen(true)}
+              type="button"
+            >
+              <Tags className="size-4" />
+              Bulk actions ({selectedIds.size})
+            </button>
+          ) : null}
+          <button
+            aria-label="Open command palette"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)]"
+            onClick={() => setCommandOpen(true)}
+            type="button"
+          >
+            <Command className="size-4" />
+            <span className="hidden xl:inline">⌘K</span>
+          </button>
+        </div>
+      ) : null}
+      {view === "export" ? (
         <section className="mt-8 overflow-hidden rounded-2xl border bg-[#101216] text-zinc-100">
-          <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <header className="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-mono text-sm font-medium">.env</p>
+              <p className="font-mono text-sm font-medium">
+                Local environment export
+              </p>
               <p className="mt-0.5 text-xs text-white/45">
                 Decrypted locally · not sent to the server
               </p>
             </div>
-            <button
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium hover:bg-white/10 disabled:opacity-40"
-              disabled={dotenvLoading || dotenvContent === null}
-              onClick={() => {
-                if (dotenvContent === null) return;
-                void navigator.clipboard.writeText(dotenvContent);
-                setCopied(true);
-                toast.success(".env copied to clipboard");
-                window.setTimeout(() => setCopied(false), 2_000);
-              }}
-              type="button"
-            >
-              {copied ? (
-                <Check className="size-3.5" />
-              ) : (
-                <Copy className="size-3.5" />
-              )}
-              {copied ? "Copied" : "Copy .env"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs outline-none"
+                disabled={dotenvLoading || exportEntries.length === 0}
+                onChange={(event) => {
+                  const format = event.target.value as EnvironmentExportFormat;
+                  setExportFormat(format);
+                  setDotenvContent(
+                    serializeEnvironment(exportEntries, format, {
+                      kubernetesSecretName: `envault-${environmentId}`,
+                    }),
+                  );
+                  setCopied(false);
+                }}
+                value={exportFormat}
+              >
+                <option className="text-black" value="dotenv">
+                  .env
+                </option>
+                <option className="text-black" value="json">
+                  JSON
+                </option>
+                <option className="text-black" value="shell">
+                  Shell exports
+                </option>
+                <option className="text-black" value="docker-compose">
+                  Docker Compose
+                </option>
+                <option className="text-black" value="kubernetes-secret">
+                  Kubernetes Secret
+                </option>
+              </select>
+              <button
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium hover:bg-white/10 disabled:opacity-40"
+                disabled={dotenvLoading || dotenvContent === null}
+                onClick={() => {
+                  if (dotenvContent === null) return;
+                  void navigator.clipboard
+                    .writeText(dotenvContent)
+                    .then(() => {
+                      setCopied(true);
+                      toast.success("Export copied to clipboard.");
+                      window.setTimeout(() => setCopied(false), 2_000);
+                    })
+                    .catch(() =>
+                      toast.error("The export could not be copied."),
+                    );
+                }}
+                type="button"
+              >
+                {copied ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+                {copied ? "Copied" : "Copy"}
+              </button>
+              <button
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium hover:bg-white/10 disabled:opacity-40"
+                disabled={dotenvLoading || dotenvContent === null}
+                onClick={() => {
+                  if (dotenvContent === null) return;
+                  const extensions: Record<EnvironmentExportFormat, string> = {
+                    dotenv: ".env",
+                    json: ".json",
+                    shell: ".sh",
+                    "docker-compose": ".compose.yaml",
+                    "kubernetes-secret": ".secret.yaml",
+                  };
+                  const blob = new Blob([dotenvContent], {
+                    type: "text/plain;charset=utf-8",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const anchor = document.createElement("a");
+                  anchor.href = url;
+                  anchor.download = `envault-${environmentId}${extensions[exportFormat]}`;
+                  anchor.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("Export downloaded.");
+                }}
+                type="button"
+              >
+                <Download className="size-3.5" />
+                Download
+              </button>
+            </div>
           </header>
           <pre className="min-h-64 overflow-x-auto whitespace-pre p-5 font-mono text-sm leading-7">
             {dotenvLoading
@@ -440,23 +758,59 @@ export function VariableWorkspace({
                 : dotenvContent}
           </pre>
           <footer className="border-t border-white/10 px-4 py-3 text-xs text-white/40">
+            {exportFormat === "kubernetes-secret"
+              ? "Kubernetes values are base64 encoded, not encrypted. "
+              : ""}
             Plaintext is cleared when you return to the table or leave this
             page.
           </footer>
         </section>
       ) : (
         <div className="mt-8 overflow-x-auto rounded-2xl border bg-[var(--surface)]">
-          <div className="grid min-w-[820px] grid-cols-[minmax(180px,1fr)_minmax(220px,1.4fr)_130px_120px] border-b px-5 py-3 text-xs font-medium uppercase text-[var(--muted)]">
+          <div className="grid min-w-[860px] grid-cols-[40px_minmax(180px,1fr)_minmax(220px,1.4fr)_130px_120px] border-b px-5 py-3 text-xs font-medium uppercase text-[var(--muted)]">
+            <input
+              aria-label="Select all visible variables"
+              checked={
+                filteredVariables.length > 0 &&
+                filteredVariables.every((variable) =>
+                  selectedIds.has(variable.id),
+                )
+              }
+              onChange={(event) => {
+                setSelectedIds((current) => {
+                  const next = new Set(current);
+                  for (const variable of filteredVariables) {
+                    if (event.target.checked) next.add(variable.id);
+                    else next.delete(variable.id);
+                  }
+                  return next;
+                });
+              }}
+              type="checkbox"
+            />
             <span>Key</span>
             <span>Value</span>
             <span>Visibility</span>
             <span />
           </div>
-          {variables.map((variable) => (
+          {filteredVariables.map((variable) => (
             <div
-              className="grid min-w-[820px] grid-cols-[minmax(180px,1fr)_minmax(220px,1.4fr)_130px_120px] items-center border-b px-5 py-4 last:border-0"
+              className="grid min-w-[860px] grid-cols-[40px_minmax(180px,1fr)_minmax(220px,1.4fr)_130px_120px] items-center border-b px-5 py-4 last:border-0"
               key={variable.id}
             >
+              <input
+                aria-label={`Select ${variable.key}`}
+                checked={selectedIds.has(variable.id)}
+                onChange={(event) => {
+                  setSelectedIds((current) => {
+                    const next = new Set(current);
+                    if (event.target.checked) next.add(variable.id);
+                    else next.delete(variable.id);
+                    return next;
+                  });
+                }}
+                type="checkbox"
+              />
               <code className="text-sm font-medium">{variable.key}</code>
               <code className="truncate pr-4 text-sm text-[var(--muted)]">
                 {revealed[variable.id] ?? "••••••••••••••••"}
@@ -502,9 +856,11 @@ export function VariableWorkspace({
               </div>
             </div>
           ))}
-          {variables.length === 0 ? (
+          {filteredVariables.length === 0 ? (
             <p className="px-5 py-14 text-center text-sm text-[var(--muted)]">
-              No variables in this environment.
+              {variables.length === 0
+                ? "No variables in this environment."
+                : "No variables match the current search and filters."}
             </p>
           ) : null}
         </div>
@@ -560,6 +916,66 @@ export function VariableWorkspace({
           </label>
         </form>
       </ActionDialog>
+      <ActionDialog
+        description="Quick actions for the current environment. Shortcuts work when you are not typing in a field."
+        onOpenChange={setCommandOpen}
+        open={commandOpen}
+        title="Environment commands"
+      >
+        <div className="space-y-2">
+          {[
+            {
+              label: "Add a variable",
+              shortcut: "N",
+              action: () => setCreating(true),
+            },
+            {
+              label: "Search variables",
+              shortcut: "/",
+              action: () => searchInputRef.current?.focus(),
+            },
+            {
+              label: "Open local exports",
+              shortcut: "E",
+              action: () => void openDotenvView(),
+            },
+            {
+              label: "Select visible variables",
+              shortcut: "",
+              action: () =>
+                setSelectedIds(
+                  new Set(filteredVariables.map((variable) => variable.id)),
+                ),
+            },
+            ...(selectedIds.size > 0
+              ? [
+                  {
+                    label: `Bulk actions for ${selectedIds.size} selected`,
+                    shortcut: "",
+                    action: () => setBulkOpen(true),
+                  },
+                ]
+              : []),
+          ].map((command) => (
+            <button
+              className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-medium hover:bg-[var(--surface-hover)]"
+              key={command.label}
+              onClick={() => {
+                setCommandOpen(false);
+                command.action();
+              }}
+              type="button"
+            >
+              {command.label}
+              {command.shortcut ? (
+                <kbd className="rounded border px-2 py-1 text-[10px] text-[var(--muted)]">
+                  {command.shortcut}
+                </kbd>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </ActionDialog>
       <ConfirmDialog
         confirmLabel="Delete variable"
         description={`This deletes ${deletingVariable?.key ?? "the variable"} and creates a final encrypted revision for recovery history.`}
@@ -570,6 +986,101 @@ export function VariableWorkspace({
         pending={actionPending}
         title="Delete variable?"
       />
+      <ActionDialog
+        description={`Apply one operation to ${selectedIds.size} selected variable${selectedIds.size === 1 ? "" : "s"}. Changes are version checked and retry safe.`}
+        footer={
+          <>
+            <button
+              className="rounded-xl border px-4 py-2.5 text-sm font-medium"
+              onClick={() => setBulkOpen(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 ${
+                bulkAction === "delete" ? "bg-red-600" : "bg-indigo-600"
+              }`}
+              disabled={
+                bulkPending ||
+                ([
+                  "add-tag",
+                  "remove-tag",
+                  "add-prefix",
+                  "remove-prefix",
+                ].includes(bulkAction) &&
+                  !bulkValue.trim())
+              }
+              onClick={() => void executeBulkAction()}
+              type="button"
+            >
+              {bulkPending ? "Applying…" : "Apply bulk action"}
+            </button>
+          </>
+        }
+        onOpenChange={setBulkOpen}
+        open={bulkOpen}
+        title="Bulk variable operation"
+      >
+        <div className="space-y-5">
+          <label className="block text-sm font-medium">
+            Action
+            <select
+              className="mt-2 w-full rounded-xl border bg-[var(--surface)] px-3.5 py-3 text-sm"
+              onChange={(event) => {
+                const action = event.target.value as BulkAction;
+                setBulkAction(action);
+                setBulkValue(action === "visibility" ? "secret" : "");
+              }}
+              value={bulkAction}
+            >
+              <option value="visibility">Change visibility</option>
+              <option value="add-tag">Add tag</option>
+              <option value="remove-tag">Remove tag</option>
+              <option value="add-prefix">Add key prefix</option>
+              <option value="remove-prefix">Remove key prefix</option>
+              <option value="uppercase">Convert keys to uppercase</option>
+              <option value="delete">Delete variables</option>
+            </select>
+          </label>
+          {bulkAction === "visibility" ? (
+            <label className="block text-sm font-medium">
+              Visibility
+              <select
+                className="mt-2 w-full rounded-xl border bg-[var(--surface)] px-3.5 py-3 text-sm"
+                onChange={(event) => setBulkValue(event.target.value)}
+                value={bulkValue}
+              >
+                <option value="secret">Secret</option>
+                <option value="protected">Protected</option>
+                <option value="plain">Plain</option>
+              </select>
+            </label>
+          ) : ["add-tag", "remove-tag", "add-prefix", "remove-prefix"].includes(
+              bulkAction,
+            ) ? (
+            <label className="block text-sm font-medium">
+              {bulkAction.includes("tag") ? "Tag" : "Prefix"}
+              <input
+                autoFocus
+                className="mt-2 w-full rounded-xl border bg-transparent px-3.5 py-3 text-sm outline-none focus:border-indigo-500"
+                maxLength={50}
+                onChange={(event) => setBulkValue(event.target.value)}
+                value={bulkValue}
+              />
+            </label>
+          ) : bulkAction === "delete" ? (
+            <p className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 text-sm text-red-700">
+              Selected variables will be deleted and encrypted recovery
+              revisions will be created.
+            </p>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">
+              Keys will be normalized to uppercase after collision checks.
+            </p>
+          )}
+        </div>
+      </ActionDialog>
     </div>
   );
 }

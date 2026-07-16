@@ -1,10 +1,14 @@
 import type {
   ApiError,
+  BulkEnvironmentRequest,
+  BulkEnvironmentResponse,
   CreateVaultRequest,
   CreateProjectRequest,
   CreateEnvironmentRequest,
   CreateVariableRequest,
   EnvironmentDto,
+  ImportEnvironmentRequest,
+  ImportEnvironmentResponse,
   ProjectDto,
   SessionResponse,
   SessionUser,
@@ -152,6 +156,22 @@ export class EnvaultClient {
       this.request<{ deleted: true; version: number }>(
         `/api/v1/variables/${variableId}`,
         { method: "DELETE", body: JSON.stringify({ expectedVersion }) },
+      ),
+  };
+
+  public readonly imports = {
+    commit: (environmentId: string, input: ImportEnvironmentRequest) =>
+      this.request<ImportEnvironmentResponse>(
+        `/api/v1/environments/${environmentId}/import`,
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+  };
+
+  public readonly bulk = {
+    commit: (environmentId: string, input: BulkEnvironmentRequest) =>
+      this.request<BulkEnvironmentResponse>(
+        `/api/v1/environments/${environmentId}/bulk`,
+        { method: "POST", body: JSON.stringify(input) },
       ),
   };
 
