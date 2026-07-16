@@ -4,11 +4,11 @@ import { EnvaultClient } from "@envault/api-client";
 import type { EnvironmentDto } from "@envault/api-contract";
 import { Boxes, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { ActionDialog, ConfirmDialog } from "@/components/ui/action-dialog";
-import { getUserFacingError } from "@/lib/user-errors";
+import { getEnvironmentConflict, getUserFacingError } from "@/lib/user-errors";
 
 const client = new EnvaultClient({ baseUrl: "" });
 
@@ -25,7 +25,7 @@ export function EnvironmentWorkspace({ projectId }: { projectId: string }) {
   const [editName, setEditName] = useState("");
   const [actionPending, setActionPending] = useState(false);
 
-  useEffect(() => {
+  const loadEnvironments = useCallback(() => {
     void client.environments
       .list(projectId)
       .then((result) => setEnvironments(result.environments))
@@ -35,6 +35,26 @@ export function EnvironmentWorkspace({ projectId }: { projectId: string }) {
         ),
       );
   }, [projectId]);
+
+  useEffect(() => {
+    loadEnvironments();
+  }, [loadEnvironments]);
+
+  function handleMutationError(error: unknown, fallback: string) {
+    const conflict = getEnvironmentConflict(error);
+    if (conflict) {
+      loadEnvironments();
+      setEditingEnvironment(null);
+      setDeletingEnvironment(null);
+      toast.warning(
+        conflict.currentVersion === null
+          ? "This environment changed elsewhere. The latest version was loaded."
+          : `This environment advanced to version ${conflict.currentVersion}. The latest version was loaded.`,
+      );
+      return;
+    }
+    toast.error(getUserFacingError(error, fallback));
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,9 +94,7 @@ export function EnvironmentWorkspace({ projectId }: { projectId: string }) {
       setEditingEnvironment(null);
       toast.success("Environment updated");
     } catch (caught) {
-      toast.error(
-        getUserFacingError(caught, "The environment could not be updated."),
-      );
+      handleMutationError(caught, "The environment could not be updated.");
     } finally {
       setActionPending(false);
     }
@@ -96,9 +114,7 @@ export function EnvironmentWorkspace({ projectId }: { projectId: string }) {
       setDeletingEnvironment(null);
       toast.success("Environment deleted");
     } catch (caught) {
-      toast.error(
-        getUserFacingError(caught, "The environment could not be deleted."),
-      );
+      handleMutationError(caught, "The environment could not be deleted.");
     } finally {
       setActionPending(false);
     }

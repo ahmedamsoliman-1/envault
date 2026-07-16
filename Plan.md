@@ -1672,15 +1672,42 @@ environment command menu; and an application-wide command palette.
 
 ## Phase 7 — Synchronization safety
 
-* Environment versioning.
-* Expected-version writes.
-* Firestore transaction checks.
-* HTTP 409 conflicts.
-* Conflict-resolution UI.
-* Idempotency keys.
-* Operation records.
+- [x] Environment versioning.
+- [x] Expected-version writes.
+- [x] Atomic Redis compare-and-set mutation checks.
+- [x] HTTP 409 conflicts with expected and current versions.
+- [x] Conflict-resolution and automatic refresh UI.
+- [x] Idempotency keys for synchronization, import and bulk operations.
+- [x] Safe operation records without plaintext values.
 
-## Phase 8 — Comparison and history
+## Phase 8 — Device architecture and VS Code extension
+
+Phase 8 begins immediately after synchronization safety. Revision history and
+activity are intentionally postponed so the existing API-first architecture can
+serve its first external client.
+
+### Stage A — Device authorization
+
+- [ ] Device authorization model and short-lived browser approval codes.
+- [ ] Scoped device-session model.
+- [ ] Device approval page.
+- [ ] Device authorization and token-exchange endpoints.
+- [ ] Device list and revocation controls in Settings.
+
+### Stage B — VS Code extension foundation
+
+- [ ] Create `apps/vscode-extension`.
+- [ ] Authenticate through browser-based device authorization.
+- [ ] Store only revocable device credentials in VS Code secret storage.
+- [ ] Use the shared API client and `/api/v1`; never connect directly to Redis
+      or Firebase.
+- [ ] Select projects and environments.
+- [ ] Pull remote environments into local dotenv files.
+- [ ] Push updates with expected-version and idempotency protection.
+- [ ] Present refresh, overwrite and merge choices for HTTP 409 conflicts.
+- [ ] Document extension security, session scopes and revocation.
+
+## Phase 9 — Comparison and history
 
 * Environment comparison.
 * Difference actions.
@@ -1760,26 +1787,14 @@ after every stage.
 
 ### Milestone acceptance criteria
 
-- [ ] Import parsing, preview and execution tests pass.
+- [x] Import parsing, preview and execution contract tests pass.
 - [x] Imported plaintext is encrypted before any API request.
 - [x] All export formats are generated locally.
 - [x] Retried imports and bulk mutations do not duplicate changes.
-- [ ] Stale import, bulk and restoration writes return HTTP 409.
+- [x] Stale import and bulk writes return HTTP 409.
 - [ ] Revision history does not decrypt values while listing.
 - [ ] Activity records contain no secret material.
 - [ ] Lint, typecheck, unit tests and production build pass.
-
-## Phase 9 — Device architecture
-
-* Device authorization model.
-* Device-session model.
-* Device approval page.
-* Device authorization endpoints.
-* Token exchange.
-* Session scopes.
-* Device list.
-* Device revocation.
-* VS Code integration documentation.
 
 ## Phase 10 — Hardening
 

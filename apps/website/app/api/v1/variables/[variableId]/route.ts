@@ -101,6 +101,10 @@ export async function DELETE(
       {
         code: "ENVIRONMENT_VERSION_CONFLICT",
         message: "The environment changed in another session.",
+        details: {
+          expectedVersion: parsed.data.expectedVersion,
+          currentVersion: result.conflictVersion,
+        },
       },
       requestId,
       409,

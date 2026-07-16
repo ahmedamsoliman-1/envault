@@ -23,3 +23,23 @@ export function getUserFacingError(error: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+export function getEnvironmentConflict(error: unknown) {
+  if (
+    !(error instanceof EnvaultApiError) ||
+    error.error.code !== "ENVIRONMENT_VERSION_CONFLICT"
+  ) {
+    return null;
+  }
+  const details = error.error.details;
+  return {
+    expectedVersion:
+      typeof details?.expectedVersion === "number"
+        ? details.expectedVersion
+        : null,
+    currentVersion:
+      typeof details?.currentVersion === "number"
+        ? details.currentVersion
+        : null,
+  };
+}

@@ -24,12 +24,19 @@ import {
   Tags,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { toast } from "sonner";
 
 import { ActionDialog, ConfirmDialog } from "@/components/ui/action-dialog";
 import { VariableImportDialog } from "@/components/variables/variable-import-dialog";
-import { getUserFacingError } from "@/lib/user-errors";
+import { getEnvironmentConflict, getUserFacingError } from "@/lib/user-errors";
 import { filterVariables, type ModifiedFilter } from "@/lib/variable-filters";
 import { getActiveVaultKey, getVaultKeyState } from "@/lib/vault-key-store";
 
@@ -106,7 +113,7 @@ export function VariableWorkspace({
     [variables],
   );
 
-  useEffect(() => {
+  const loadVariables = useCallback(() => {
     void client.variables
       .list(environmentId)
       .then((result) => {
@@ -119,6 +126,28 @@ export function VariableWorkspace({
         ),
       );
   }, [environmentId]);
+
+  useEffect(() => {
+    loadVariables();
+  }, [loadVariables]);
+
+  function handleMutationError(error: unknown, fallback: string) {
+    const conflict = getEnvironmentConflict(error);
+    if (conflict) {
+      loadVariables();
+      setEditingVariable(null);
+      setDeletingVariable(null);
+      setSelectedIds(new Set());
+      setRevealed({});
+      toast.warning(
+        conflict.currentVersion === null
+          ? "This environment changed in another client. The latest version was loaded."
+          : `This environment advanced to version ${conflict.currentVersion}. The latest version was loaded.`,
+      );
+      return;
+    }
+    toast.error(getUserFacingError(error, fallback));
+  }
 
   useEffect(
     () => () => {
@@ -203,9 +232,7 @@ export function VariableWorkspace({
       setCreating(false);
       toast.success("Variable encrypted and saved");
     } catch (caught) {
-      toast.error(
-        getUserFacingError(caught, "The variable could not be created."),
-      );
+      handleMutationError(caught, "The variable could not be created.");
     } finally {
       setPending(false);
     }
@@ -306,9 +333,7 @@ export function VariableWorkspace({
       setEditValue("");
       toast.success("Variable updated");
     } catch (caught) {
-      toast.error(
-        getUserFacingError(caught, "The variable could not be updated."),
-      );
+      handleMutationError(caught, "The variable could not be updated.");
     } finally {
       vaultKey.fill(0);
       setActionPending(false);
@@ -330,9 +355,7 @@ export function VariableWorkspace({
       setDeletingVariable(null);
       toast.success("Variable deleted");
     } catch (caught) {
-      toast.error(
-        getUserFacingError(caught, "The variable could not be deleted."),
-      );
+      handleMutationError(caught, "The variable could not be deleted.");
     } finally {
       setActionPending(false);
     }
@@ -457,9 +480,7 @@ export function VariableWorkspace({
     } catch (error) {
       setVariables(currentVariables);
       setVersion(currentVersion);
-      toast.error(
-        getUserFacingError(error, "The bulk operation could not be completed."),
-      );
+      handleMutationError(error, "The bulk operation could not be completed.");
     } finally {
       setBulkPending(false);
     }
