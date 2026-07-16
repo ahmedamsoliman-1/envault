@@ -9,7 +9,6 @@ import {
   successResponse,
 } from "@/lib/api-response";
 import { getAdminAuth, getAdminFirestore } from "@/lib/firebase-admin";
-import { getPasskeyConfiguration } from "@/lib/passkey-config";
 import { PasskeyRepository } from "@/lib/passkey-repository";
 import { hasTrustedOrigin } from "@/lib/request-security";
 
@@ -34,7 +33,11 @@ export async function POST(request: NextRequest) {
     "authentication",
     body.flowId,
   );
-  const challenge = await redis.get<{ challenge: string }>(challengeKey);
+  const challenge = await redis.get<{
+    challenge: string;
+    origin: string;
+    rpId: string;
+  }>(challengeKey);
   await redis.del(challengeKey);
   const repository = new PasskeyRepository(redis);
   const stored = await repository.find(body.response.id);
@@ -45,12 +48,11 @@ export async function POST(request: NextRequest) {
       401,
     );
   }
-  const configuration = getPasskeyConfiguration();
   const verification = await verifyAuthenticationResponse({
     response: body.response,
     expectedChallenge: challenge.challenge,
-    expectedOrigin: configuration.origin,
-    expectedRPID: configuration.rpId,
+    expectedOrigin: challenge.origin,
+    expectedRPID: challenge.rpId,
     credential: repository.toWebAuthnCredential(stored),
     requireUserVerification: true,
   });

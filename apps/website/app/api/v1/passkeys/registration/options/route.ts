@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const redis = getAdminFirestore();
   const credentials = await new PasskeyRepository(redis).list(user.id);
-  const configuration = getPasskeyConfiguration();
+  const configuration = getPasskeyConfiguration(request);
   const options = await generateRegistrationOptions({
     rpName: configuration.rpName,
     rpID: configuration.rpId,
@@ -49,7 +49,12 @@ export async function POST(request: NextRequest) {
   const flowId = crypto.randomUUID();
   await redis.set(
     envaultRedisKey("passkey-challenge", "registration", flowId),
-    { userId: user.id, challenge: options.challenge },
+    {
+      userId: user.id,
+      challenge: options.challenge,
+      origin: configuration.origin,
+      rpId: configuration.rpId,
+    },
     { ex: 300 },
   );
   return successResponse({ flowId, options }, requestId);

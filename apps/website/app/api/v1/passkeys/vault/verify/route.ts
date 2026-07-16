@@ -10,7 +10,6 @@ import {
   successResponse,
 } from "@/lib/api-response";
 import { getAdminFirestore } from "@/lib/firebase-admin";
-import { getPasskeyConfiguration } from "@/lib/passkey-config";
 import { PasskeyRepository } from "@/lib/passkey-repository";
 import { hasTrustedOrigin } from "@/lib/request-security";
 import { getSessionUser } from "@/lib/session";
@@ -20,6 +19,8 @@ interface VaultChallenge {
   vaultId: string;
   mode: "enroll" | "unlock";
   challenge: string;
+  origin: string;
+  rpId: string;
   salts: Record<string, string>;
 }
 
@@ -68,12 +69,11 @@ export async function POST(request: NextRequest) {
       400,
     );
   }
-  const configuration = getPasskeyConfiguration();
   const verification = await verifyAuthenticationResponse({
     response: body.response,
     expectedChallenge: challenge.challenge,
-    expectedOrigin: configuration.origin,
-    expectedRPID: configuration.rpId,
+    expectedOrigin: challenge.origin,
+    expectedRPID: challenge.rpId,
     credential: repository.toWebAuthnCredential(stored),
     requireUserVerification: true,
   });

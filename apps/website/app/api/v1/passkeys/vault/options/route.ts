@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
           ),
     ]),
   );
-  const configuration = getPasskeyConfiguration();
+  const configuration = getPasskeyConfiguration(request);
   const options = await generateAuthenticationOptions({
     rpID: configuration.rpId,
     userVerification: "required",
@@ -116,6 +116,8 @@ export async function POST(request: NextRequest) {
       vaultId,
       mode,
       challenge: options.challenge,
+      origin: configuration.origin,
+      rpId: configuration.rpId,
       salts,
     },
     { ex: 300 },

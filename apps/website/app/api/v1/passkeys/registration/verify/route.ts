@@ -9,7 +9,6 @@ import {
   successResponse,
 } from "@/lib/api-response";
 import { getAdminFirestore } from "@/lib/firebase-admin";
-import { getPasskeyConfiguration } from "@/lib/passkey-config";
 import { PasskeyRepository } from "@/lib/passkey-repository";
 import { hasTrustedOrigin } from "@/lib/request-security";
 import { getSessionUser } from "@/lib/session";
@@ -17,6 +16,8 @@ import { getSessionUser } from "@/lib/session";
 interface RegistrationChallenge {
   userId: string;
   challenge: string;
+  origin: string;
+  rpId: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -59,12 +60,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const configuration = getPasskeyConfiguration();
   const verification = await verifyRegistrationResponse({
     response: body.response,
     expectedChallenge: challenge.challenge,
-    expectedOrigin: configuration.origin,
-    expectedRPID: configuration.rpId,
+    expectedOrigin: challenge.origin,
+    expectedRPID: challenge.rpId,
     requireUserVerification: true,
   });
   if (!verification.verified || !verification.registrationInfo) {

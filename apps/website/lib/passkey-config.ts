@@ -1,9 +1,12 @@
 import "server-only";
 
-export function getPasskeyConfiguration() {
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const origin = new URL(configuredUrl).origin;
+import type { NextRequest } from "next/server";
+
+export function getPasskeyConfiguration(request: NextRequest) {
+  const requestOrigin = request.headers.get("origin");
+  const origin = requestOrigin
+    ? new URL(requestOrigin).origin
+    : request.nextUrl.origin;
   return {
     origin,
     rpId: new URL(origin).hostname,
