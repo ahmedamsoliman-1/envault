@@ -1,4 +1,11 @@
-import type { ApiError, SessionResponse } from "@envault/api-contract";
+import type {
+  ApiError,
+  CreateVaultRequest,
+  SessionResponse,
+  VaultDto,
+  VaultSettings,
+  VaultStatus,
+} from "@envault/api-contract";
 
 export interface EnvaultClientOptions {
   baseUrl: string;
@@ -51,6 +58,16 @@ export class EnvaultClient {
           method: "DELETE",
         }),
     },
+  };
+
+  public readonly vault = {
+    get: () => this.request<VaultStatus>("/api/v1/vault"),
+    getSettings: () => this.request<VaultSettings>("/api/v1/vault/settings"),
+    create: (input: CreateVaultRequest) =>
+      this.request<VaultDto>("/api/v1/vault", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
   };
 
   public async request<T>(path: string, init: RequestInit = {}): Promise<T> {

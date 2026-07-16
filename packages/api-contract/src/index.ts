@@ -12,6 +12,7 @@ export const apiErrorCodeSchema = z.enum([
   "INVALID_MFA_CODE",
   "RECENT_AUTHENTICATION_REQUIRED",
   "VAULT_LOCKED",
+  "VAULT_ALREADY_EXISTS",
   "INCORRECT_VAULT_PASSPHRASE",
   "INVALID_RECOVERY_KEY",
   "CORRUPT_CIPHERTEXT",
@@ -49,6 +50,46 @@ export const sessionUserSchema = z.object({
 export const sessionResponseSchema = z.object({
   user: sessionUserSchema,
   expiresAt: z.iso.datetime(),
+});
+
+export const keyDerivationV1Schema = z.object({
+  version: z.literal(1),
+  algorithm: z.literal("PBKDF2-SHA-256"),
+  salt: z.string().min(16).max(256),
+  iterations: z.number().int().min(600_000).max(10_000_000),
+});
+
+export const wrappedVaultKeyV1Schema = z.object({
+  version: z.literal(1),
+  algorithm: z.literal("AES-GCM"),
+  ciphertext: z.string().min(32).max(1_024),
+  iv: z.string().min(12).max(128),
+  additionalDataVersion: z.literal(1),
+});
+
+export const createVaultRequestSchema = z.object({
+  vaultId: z.string().uuid(),
+  protocolVersion: z.literal(1),
+  passphraseDerivation: keyDerivationV1Schema,
+  passphraseWrappedKey: wrappedVaultKeyV1Schema,
+  recoveryDerivation: keyDerivationV1Schema,
+  recoveryWrappedKey: wrappedVaultKeyV1Schema,
+  autoLockMinutes: z.number().int().min(1).max(1_440).default(15),
+});
+
+export const vaultDtoSchema = createVaultRequestSchema.extend({
+  ownerId: z.string().min(1),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const vaultStatusSchema = z.object({
+  exists: z.boolean(),
+  vault: vaultDtoSchema.nullable(),
+});
+
+export const vaultSettingsSchema = z.object({
+  pbkdf2Iterations: z.number().int().min(600_000).max(10_000_000),
 });
 
 export const projectDtoSchema = z.object({
@@ -116,6 +157,10 @@ export type SessionExchangeRequest = z.infer<
 >;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 export type SessionUser = z.infer<typeof sessionUserSchema>;
+export type CreateVaultRequest = z.infer<typeof createVaultRequestSchema>;
+export type VaultDto = z.infer<typeof vaultDtoSchema>;
+export type VaultStatus = z.infer<typeof vaultStatusSchema>;
+export type VaultSettings = z.infer<typeof vaultSettingsSchema>;
 export type ProjectDto = z.infer<typeof projectDtoSchema>;
 export type EnvironmentDto = z.infer<typeof environmentDtoSchema>;
 export type VariableDto = z.infer<typeof variableDtoSchema>;

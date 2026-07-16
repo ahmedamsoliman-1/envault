@@ -53,6 +53,9 @@ importers:
       '@envault/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@envault/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@envault/firebase':
         specifier: workspace:*
         version: link:../../packages/firebase
@@ -156,6 +159,9 @@ importers:
 
   packages/firebase:
     dependencies:
+      '@envault/api-contract':
+        specifier: workspace:*
+        version: link:../api-contract
       firebase:
         specifier: ^12.0.0
         version: 12.16.0

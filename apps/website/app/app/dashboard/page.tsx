@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/logout-button";
+import { VaultStatusCard } from "@/components/vault/vault-status-card";
 import { isEmailVerificationRequired } from "@/lib/features";
 import { getSessionUser } from "@/lib/session";
 
@@ -30,9 +31,10 @@ export default async function DashboardPage() {
           Your encrypted workspace starts here.
         </h2>
         <p className="mt-4 max-w-xl leading-7 text-[var(--muted)]">
-          Authentication and verified-email gating are active. Vault creation is
-          the next security milestone.
+          Authentication is active. Create the client-side encrypted vault
+          before adding projects and environment variables.
         </p>
+        <VaultStatusCard />
       </section>
     </main>
   );

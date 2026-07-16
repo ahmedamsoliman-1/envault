@@ -1,7 +1,4 @@
-export interface EncryptedPayloadV1 {
-  version: 1;
-  algorithm: "AES-GCM";
-  ciphertext: string;
-  iv: string;
-  additionalDataVersion: 1;
-}
+export * from "./key-wrapping/vault-keys";
+export * from "./protocol/base64";
+export type * from "./protocol/crypto-provider";
+export type * from "./protocol/types";
