@@ -1,0 +1,20 @@
+{
+  "name": "@envault/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./public": "./src/public.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "server-only": "^0.0.1",
+    "zod": "^4.0.5"
+  }
+}
