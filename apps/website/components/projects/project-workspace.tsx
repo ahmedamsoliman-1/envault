@@ -2,7 +2,14 @@
 
 import { EnvaultClient } from "@envault/api-client";
 import type { ProjectDto } from "@envault/api-contract";
-import { Folder, LockKeyhole, Plus, Search } from "lucide-react";
+import {
+  Folder,
+  LockKeyhole,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import {
   useEffect,
@@ -11,7 +18,9 @@ import {
   useSyncExternalStore,
   type FormEvent,
 } from "react";
+import { toast } from "sonner";
 
+import { ActionDialog, ConfirmDialog } from "@/components/ui/action-dialog";
 import {
   getVaultKeyState,
   lockedVaultKeyState,
@@ -30,6 +39,12 @@ export function ProjectWorkspace() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingProject, setEditingProject] = useState<ProjectDto | null>(null);
+  const [deletingProject, setDeletingProject] = useState<ProjectDto | null>(
+    null,
+  );
+  const [editName, setEditName] = useState("");
+  const [actionPending, setActionPending] = useState(false);
   const vaultState = useSyncExternalStore(
     subscribeToVaultKey,
     getVaultKeyState,
@@ -71,12 +86,54 @@ export function ProjectWorkspace() {
       setName("");
       setDescription("");
       setCreating(false);
+      toast.success("Project created");
     } catch (caughtError) {
       setError(
         getUserFacingError(caughtError, "The project could not be created."),
       );
     } finally {
       setPending(false);
+    }
+  }
+
+  async function editProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingProject || !editName.trim()) return;
+    setActionPending(true);
+    try {
+      const updated = await client.projects.update(editingProject.id, {
+        name: editName.trim(),
+      });
+      setProjects((current) =>
+        current.map((item) => (item.id === editingProject.id ? updated : item)),
+      );
+      setEditingProject(null);
+      toast.success("Project updated");
+    } catch (caught) {
+      toast.error(
+        getUserFacingError(caught, "The project could not be updated."),
+      );
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function deleteProject() {
+    if (!deletingProject) return;
+    setActionPending(true);
+    try {
+      await client.projects.delete(deletingProject.id);
+      setProjects((current) =>
+        current.filter((item) => item.id !== deletingProject.id),
+      );
+      setDeletingProject(null);
+      toast.success("Project deleted");
+    } catch (caught) {
+      toast.error(
+        getUserFacingError(caught, "The project could not be deleted."),
+      );
+    } finally {
+      setActionPending(false);
     }
   }
 
@@ -201,22 +258,49 @@ export function ProjectWorkspace() {
         ) : filteredProjects.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredProjects.map((project) => (
-              <Link
+              <article
                 className="group rounded-2xl border bg-[var(--surface)] p-5 hover:-translate-y-0.5 hover:border-indigo-500/35 hover:shadow-lg hover:shadow-black/[0.03]"
-                href={`/app/projects/${project.id}`}
                 key={project.id}
               >
                 <div className="flex size-10 items-center justify-center rounded-xl border bg-[var(--app-background)]">
                   <Folder className="size-5 text-indigo-500" />
                 </div>
-                <h3 className="mt-5 font-semibold">{project.name}</h3>
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <Link
+                    className="font-semibold hover:text-indigo-600"
+                    href={`/app/projects/${project.id}`}
+                  >
+                    {project.name}
+                  </Link>
+                  <div className="flex items-center">
+                    <button
+                      aria-label="Edit project"
+                      className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                      onClick={() => {
+                        setEditingProject(project);
+                        setEditName(project.name);
+                      }}
+                      type="button"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      aria-label="Delete project"
+                      className="rounded-lg p-2 text-[var(--muted)] hover:bg-red-500/10 hover:text-red-600"
+                      onClick={() => setDeletingProject(project)}
+                      type="button"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
                 <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-[var(--muted)]">
                   {project.description ?? "No description"}
                 </p>
                 <p className="mt-5 text-xs text-[var(--muted)]">
                   Updated {new Date(project.updatedAt).toLocaleDateString()}
                 </p>
-              </Link>
+              </article>
             ))}
           </div>
         ) : (
@@ -231,6 +315,56 @@ export function ProjectWorkspace() {
           </div>
         )}
       </div>
+      <ActionDialog
+        description="Change the project name. Existing environments and variables are unaffected."
+        footer={
+          <>
+            <button
+              className="rounded-xl border px-4 py-2.5 text-sm font-medium"
+              onClick={() => setEditingProject(null)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              disabled={actionPending || !editName.trim()}
+              form="edit-project-form"
+              type="submit"
+            >
+              {actionPending ? "Saving…" : "Save changes"}
+            </button>
+          </>
+        }
+        onOpenChange={(open) => !open && setEditingProject(null)}
+        open={editingProject !== null}
+        title="Rename project"
+      >
+        <form
+          id="edit-project-form"
+          onSubmit={(event) => void editProject(event)}
+        >
+          <label className="text-sm font-medium">
+            Project name
+            <input
+              autoFocus
+              className="mt-2 w-full rounded-xl border bg-transparent px-3.5 py-3 text-sm outline-none focus:border-indigo-500"
+              onChange={(event) => setEditName(event.target.value)}
+              value={editName}
+            />
+          </label>
+        </form>
+      </ActionDialog>
+      <ConfirmDialog
+        confirmLabel="Delete project"
+        description={`This permanently deletes “${deletingProject?.name ?? ""}” and all environments and variables inside it. This action cannot be undone.`}
+        destructive
+        onConfirm={() => void deleteProject()}
+        onOpenChange={(open) => !open && setDeletingProject(null)}
+        open={deletingProject !== null}
+        pending={actionPending}
+        title="Delete project?"
+      />
     </div>
   );
 }

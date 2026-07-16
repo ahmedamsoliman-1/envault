@@ -9,6 +9,9 @@ import type {
   SessionResponse,
   SessionUser,
   UpdateProfileRequest,
+  UpdateProjectRequest,
+  UpdateEnvironmentRequest,
+  UpdateVariableRequest,
   VariableDto,
   VaultDto,
   VaultSettings,
@@ -85,6 +88,15 @@ export class EnvaultClient {
         method: "POST",
         body: JSON.stringify(input),
       }),
+    update: (projectId: string, input: UpdateProjectRequest) =>
+      this.request<ProjectDto>(`/api/v1/projects/${projectId}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    delete: (projectId: string) =>
+      this.request<{ deleted: true }>(`/api/v1/projects/${projectId}`, {
+        method: "DELETE",
+      }),
   };
 
   public readonly profile = {
@@ -101,6 +113,16 @@ export class EnvaultClient {
       this.request<{ environments: EnvironmentDto[] }>(
         `/api/v1/projects/${projectId}/environments`,
       ),
+    update: (environmentId: string, input: UpdateEnvironmentRequest) =>
+      this.request<EnvironmentDto>(`/api/v1/environments/${environmentId}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    delete: (environmentId: string, expectedVersion: number) =>
+      this.request<{ deleted: true }>(`/api/v1/environments/${environmentId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ expectedVersion }),
+      }),
     create: (projectId: string, input: CreateEnvironmentRequest) =>
       this.request<EnvironmentDto>(
         `/api/v1/projects/${projectId}/environments`,
@@ -120,6 +142,16 @@ export class EnvaultClient {
       this.request<{ variable: VariableDto; version: number }>(
         `/api/v1/environments/${environmentId}/variables`,
         { method: "POST", body: JSON.stringify(input) },
+      ),
+    update: (variableId: string, input: UpdateVariableRequest) =>
+      this.request<{ variable: VariableDto; version: number }>(
+        `/api/v1/variables/${variableId}`,
+        { method: "PATCH", body: JSON.stringify(input) },
+      ),
+    delete: (variableId: string, expectedVersion: number) =>
+      this.request<{ deleted: true; version: number }>(
+        `/api/v1/variables/${variableId}`,
+        { method: "DELETE", body: JSON.stringify({ expectedVersion }) },
       ),
   };
 

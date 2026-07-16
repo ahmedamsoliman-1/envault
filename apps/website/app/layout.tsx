@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { VaultLifecycle } from "@/components/vault/vault-lifecycle";
+import { Notifications } from "@/components/providers/notifications";
 
 import "./globals.css";
 
@@ -21,6 +22,7 @@ export default function RootLayout({
       <body>
         {children}
         <VaultLifecycle />
+        <Notifications />
       </body>
     </html>
   );

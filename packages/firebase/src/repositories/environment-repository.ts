@@ -3,6 +3,8 @@ import "server-only";
 import type {
   CreateEnvironmentRequest,
   CreateVariableRequest,
+  UpdateEnvironmentRequest,
+  UpdateVariableRequest,
   EnvironmentDto,
   VariableDto,
 } from "@envault/api-contract";
@@ -215,6 +217,24 @@ export class FirestoreEnvironmentRepository {
         updatedAt: now,
       };
       transaction.create(variableReference, value);
+      transaction.create(
+        this.firestore
+          .collection("vaults")
+          .doc(vaultId)
+          .collection("revisions")
+          .doc(),
+        {
+          ownerId,
+          vaultId,
+          projectId: input.projectId,
+          environmentId,
+          variableId: input.id,
+          action: "created",
+          snapshot: value,
+          createdAt: now,
+          updatedAt: now,
+        },
+      );
       transaction.update(environmentReference, {
         version: currentVersion + 1,
         contentRevision: crypto.randomUUID(),
@@ -224,6 +244,230 @@ export class FirestoreEnvironmentRepository {
         variable: variableDto(variableReference.id, value),
         version: currentVersion + 1,
       };
+    });
+  }
+
+  public async updateEnvironment(
+    ownerId: string,
+    environmentId: string,
+    input: UpdateEnvironmentRequest,
+  ) {
+    const vaultId = await this.#vaultId(ownerId);
+    if (!vaultId) return null;
+    const reference = this.firestore
+      .collection("vaults")
+      .doc(vaultId)
+      .collection("environments")
+      .doc(environmentId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists || snapshot.get("ownerId") !== ownerId) return null;
+      const currentVersion = snapshot.get("version") as number;
+      if (currentVersion !== input.expectedVersion)
+        return { conflictVersion: currentVersion };
+      const now = Timestamp.now();
+      const contentRevision = crypto.randomUUID();
+      transaction.update(reference, {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.kind === undefined ? {} : { kind: input.kind }),
+        version: currentVersion + 1,
+        contentRevision,
+        updatedAt: now,
+      });
+      return environmentDto(environmentId, {
+        ...(snapshot.data() as EnvironmentDocument),
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.kind === undefined ? {} : { kind: input.kind }),
+        version: currentVersion + 1,
+        contentRevision,
+        updatedAt: now,
+      });
+    });
+  }
+
+  public async deleteEnvironment(
+    ownerId: string,
+    environmentId: string,
+    expectedVersion: number,
+  ) {
+    const vaultId = await this.#vaultId(ownerId);
+    if (!vaultId) return null;
+    const reference = this.firestore
+      .collection("vaults")
+      .doc(vaultId)
+      .collection("environments")
+      .doc(environmentId);
+    const snapshot = await reference.get();
+    if (!snapshot.exists || snapshot.get("ownerId") !== ownerId) return null;
+    const currentVersion = snapshot.get("version") as number;
+    if (currentVersion !== expectedVersion)
+      return { conflictVersion: currentVersion };
+    const variables = await this.firestore
+      .collection("vaults")
+      .doc(vaultId)
+      .collection("variables")
+      .where("environmentId", "==", environmentId)
+      .get();
+    const references = [...variables.docs.map((item) => item.ref), reference];
+    for (let index = 0; index < references.length; index += 400) {
+      const batch = this.firestore.batch();
+      for (const item of references.slice(index, index + 400))
+        batch.delete(item);
+      await batch.commit();
+    }
+    return { deleted: true as const };
+  }
+
+  public async updateVariable(
+    ownerId: string,
+    variableId: string,
+    input: UpdateVariableRequest,
+  ) {
+    const vaultId = await this.#vaultId(ownerId);
+    if (!vaultId) return null;
+    const variableReference = this.firestore
+      .collection("vaults")
+      .doc(vaultId)
+      .collection("variables")
+      .doc(variableId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const variable = await transaction.get(variableReference);
+      if (!variable.exists || variable.get("ownerId") !== ownerId) return null;
+      const environmentId = variable.get("environmentId") as string;
+      const environmentReference = this.firestore
+        .collection("vaults")
+        .doc(vaultId)
+        .collection("environments")
+        .doc(environmentId);
+      const environment = await transaction.get(environmentReference);
+      const currentVersion = environment.get("version") as number;
+      if (currentVersion !== input.expectedVersion)
+        return { conflictVersion: currentVersion };
+      if (input.key !== undefined) {
+        const keys = await transaction.get(
+          this.firestore
+            .collection("vaults")
+            .doc(vaultId)
+            .collection("variables")
+            .where("environmentId", "==", environmentId),
+        );
+        if (
+          keys.docs.some(
+            (document) =>
+              document.id !== variableId &&
+              document.get("normalizedKey") === input.key?.toUpperCase(),
+          )
+        ) {
+          return { duplicate: true as const };
+        }
+      }
+      const now = Timestamp.now();
+      const previous = variable.data() as VariableDocument;
+      const updated: VariableDocument = {
+        ...previous,
+        ...(input.key === undefined
+          ? {}
+          : { key: input.key, normalizedKey: input.key.toUpperCase() }),
+        ...(input.encryptedValue === undefined
+          ? {}
+          : { encryptedValue: input.encryptedValue }),
+        ...(input.encryptionIv === undefined
+          ? {}
+          : { encryptionIv: input.encryptionIv }),
+        ...(input.encryptionVersion === undefined
+          ? {}
+          : { encryptionVersion: input.encryptionVersion }),
+        ...(input.visibility === undefined
+          ? {}
+          : { visibility: input.visibility }),
+        ...(input.tags === undefined ? {} : { tags: input.tags }),
+        ...(input.description === undefined
+          ? {}
+          : { description: input.description }),
+        updatedAt: now,
+      };
+      transaction.create(
+        this.firestore
+          .collection("vaults")
+          .doc(vaultId)
+          .collection("revisions")
+          .doc(),
+        {
+          ownerId,
+          vaultId,
+          projectId: previous.projectId,
+          environmentId,
+          variableId,
+          action: "updated",
+          snapshot: previous,
+          createdAt: now,
+          updatedAt: now,
+        },
+      );
+      transaction.update(variableReference, { ...updated });
+      transaction.update(environmentReference, {
+        version: currentVersion + 1,
+        contentRevision: crypto.randomUUID(),
+        updatedAt: now,
+      });
+      return {
+        variable: variableDto(variableId, updated),
+        version: currentVersion + 1,
+      };
+    });
+  }
+
+  public async deleteVariable(
+    ownerId: string,
+    variableId: string,
+    expectedVersion: number,
+  ) {
+    const vaultId = await this.#vaultId(ownerId);
+    if (!vaultId) return null;
+    const variableReference = this.firestore
+      .collection("vaults")
+      .doc(vaultId)
+      .collection("variables")
+      .doc(variableId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const variable = await transaction.get(variableReference);
+      if (!variable.exists || variable.get("ownerId") !== ownerId) return null;
+      const previous = variable.data() as VariableDocument;
+      const environmentReference = this.firestore
+        .collection("vaults")
+        .doc(vaultId)
+        .collection("environments")
+        .doc(previous.environmentId);
+      const environment = await transaction.get(environmentReference);
+      const currentVersion = environment.get("version") as number;
+      if (currentVersion !== expectedVersion)
+        return { conflictVersion: currentVersion };
+      const now = Timestamp.now();
+      transaction.create(
+        this.firestore
+          .collection("vaults")
+          .doc(vaultId)
+          .collection("revisions")
+          .doc(),
+        {
+          ownerId,
+          vaultId,
+          projectId: previous.projectId,
+          environmentId: previous.environmentId,
+          variableId,
+          action: "deleted",
+          snapshot: previous,
+          createdAt: now,
+          updatedAt: now,
+        },
+      );
+      transaction.delete(variableReference);
+      transaction.update(environmentReference, {
+        version: currentVersion + 1,
+        contentRevision: crypto.randomUUID(),
+        updatedAt: now,
+      });
+      return { deleted: true as const, version: currentVersion + 1 };
     });
   }
 }

@@ -45,11 +45,11 @@ export function MobileNavigation({
         <button
           aria-expanded={open}
           aria-label="Open navigation"
-          className="flex size-10 items-center justify-center rounded-xl border bg-[var(--surface)]"
+          className="flex size-10 items-center justify-center rounded-xl bg-[var(--foreground)] text-[var(--background)] shadow-md shadow-black/10 ring-1 ring-black/5 hover:scale-[1.03] hover:shadow-lg active:scale-95 dark:shadow-black/30"
           onClick={() => setOpen(true)}
           type="button"
         >
-          <Menu className="size-5" />
+          <Menu className="size-5 stroke-[2.25]" />
         </button>
       </div>
 

@@ -56,6 +56,9 @@ importers:
       '@envault/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      '@envault/dotenv':
+        specifier: workspace:*
+        version: link:../../packages/dotenv
       '@envault/firebase':
         specifier: workspace:*
         version: link:../../packages/firebase

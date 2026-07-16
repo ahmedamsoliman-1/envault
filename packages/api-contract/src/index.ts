@@ -111,6 +111,9 @@ export const createProjectRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(500).nullable().default(null),
 });
+export const updateProjectRequestSchema = createProjectRequestSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0);
 
 export const projectListSchema = z.object({
   projects: z.array(projectDtoSchema),
@@ -142,6 +145,10 @@ export const createEnvironmentRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
   kind: environmentKindSchema,
 });
+export const updateEnvironmentRequestSchema = createEnvironmentRequestSchema
+  .partial()
+  .extend({ expectedVersion: z.number().int().nonnegative() })
+  .refine((value) => value.name !== undefined || value.kind !== undefined);
 
 export const variableDtoSchema = z.object({
   id: z.string().min(1),
@@ -174,6 +181,13 @@ export const createVariableRequestSchema = z.object({
   description: z.string().max(1_000).nullable().default(null),
   expectedVersion: z.number().int().nonnegative(),
 });
+export const updateVariableRequestSchema = createVariableRequestSchema
+  .omit({ id: true, projectId: true })
+  .partial()
+  .required({ expectedVersion: true });
+export const deleteVersionRequestSchema = z.object({
+  expectedVersion: z.number().int().nonnegative(),
+});
 
 export function createSuccessResponse<T>(data: T, requestId: string) {
   return { data, meta: { requestId } };
@@ -199,9 +213,14 @@ export type VaultStatus = z.infer<typeof vaultStatusSchema>;
 export type VaultSettings = z.infer<typeof vaultSettingsSchema>;
 export type ProjectDto = z.infer<typeof projectDtoSchema>;
 export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
+export type UpdateProjectRequest = z.infer<typeof updateProjectRequestSchema>;
 export type EnvironmentDto = z.infer<typeof environmentDtoSchema>;
 export type CreateEnvironmentRequest = z.infer<
   typeof createEnvironmentRequestSchema
 >;
+export type UpdateEnvironmentRequest = z.infer<
+  typeof updateEnvironmentRequestSchema
+>;
 export type VariableDto = z.infer<typeof variableDtoSchema>;
 export type CreateVariableRequest = z.infer<typeof createVariableRequestSchema>;
+export type UpdateVariableRequest = z.infer<typeof updateVariableRequestSchema>;
