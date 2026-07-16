@@ -21,6 +21,8 @@ Every key is isolated below the versioned `envault:v1:` namespace:
 - `envault:v1:vault:{vaultId}:state` stores the encrypted vault aggregate.
 - `envault:v1:session:{sessionId}` stores an opaque application session with TTL.
 - `envault:v1:mfa:{userId}` stores the server-encrypted TOTP configuration.
+- `envault:v1:mfa-trusted-device:{deviceId}` stores a revocable browser trust
+  record with a 30-day TTL.
 
 Vault mutations use a Lua compare-and-set operation. A mutation reads the
 aggregate, applies domain changes, then replaces it only when the stored value

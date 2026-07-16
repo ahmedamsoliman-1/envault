@@ -37,7 +37,11 @@ export function getMfaConfiguration() {
   if (!environment.MFA_ENCRYPTION_KEY) {
     throw new Error("MFA_ENCRYPTION_KEY_NOT_CONFIGURED");
   }
-  return { encryptionKey: environment.MFA_ENCRYPTION_KEY };
+  return {
+    encryptionKey: environment.MFA_ENCRYPTION_KEY,
+    trustedDeviceCookieName: "envault_mfa_trust",
+    trustedDeviceMaxAgeSeconds: environment.DEVICE_SESSION_MAX_AGE_SECONDS,
+  };
 }
 
 export function getAdminAuth() {

@@ -42,6 +42,7 @@ export const sessionExchangeRequestSchema = z.object({
     .string()
     .regex(/^\d{6}$/u)
     .optional(),
+  rememberDevice: z.boolean().optional().default(false),
 });
 
 export const mfaCodeRequestSchema = z.object({

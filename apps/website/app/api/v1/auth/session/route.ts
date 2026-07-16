@@ -17,6 +17,12 @@ import { MfaRepository } from "@/lib/mfa-repository";
 import { hasTrustedOrigin } from "@/lib/request-security";
 import { getSessionUser } from "@/lib/session";
 
+interface TrustedMfaDevice {
+  userId: string;
+  trustVersion: string;
+  createdAt: string;
+}
+
 export async function GET() {
   const requestId = crypto.randomUUID();
   const user = await getSessionUser();
@@ -66,11 +72,19 @@ export async function POST(request: NextRequest) {
       true,
     );
     let customMfaEnabled = false;
+    let mfaTrustVersion: string | null = null;
+    let trustedDeviceCookieName = "envault_mfa_trust";
+    let trustedDeviceMaxAgeSeconds = 2_592_000;
+    let shouldRememberDevice = false;
     try {
-      const firestore = getAdminFirestore();
+      const redis = getAdminFirestore();
       let encryptionKey = "";
       try {
-        encryptionKey = getMfaConfiguration().encryptionKey;
+        const mfaConfiguration = getMfaConfiguration();
+        encryptionKey = mfaConfiguration.encryptionKey;
+        trustedDeviceCookieName = mfaConfiguration.trustedDeviceCookieName;
+        trustedDeviceMaxAgeSeconds =
+          mfaConfiguration.trustedDeviceMaxAgeSeconds;
       } catch (error) {
         if (
           !(error instanceof Error) ||
@@ -79,8 +93,10 @@ export async function POST(request: NextRequest) {
           throw error;
         }
       }
-      const mfaRepository = new MfaRepository(firestore, encryptionKey);
-      customMfaEnabled = (await mfaRepository.status(decodedToken.uid)).enabled;
+      const mfaRepository = new MfaRepository(redis, encryptionKey);
+      const mfaStatus = await mfaRepository.trustStatus(decodedToken.uid);
+      customMfaEnabled = mfaStatus.enabled;
+      mfaTrustVersion = mfaStatus.trustVersion;
       if (customMfaEnabled && !encryptionKey) {
         return errorResponse(
           {
@@ -91,7 +107,19 @@ export async function POST(request: NextRequest) {
           503,
         );
       }
-      if (customMfaEnabled && !result.data.mfaCode) {
+      const trustedDeviceId = request.cookies.get(
+        trustedDeviceCookieName,
+      )?.value;
+      const trustedDevice = trustedDeviceId
+        ? await redis.get<TrustedMfaDevice>(
+            envaultRedisKey("mfa-trusted-device", trustedDeviceId),
+          )
+        : null;
+      const deviceIsTrusted =
+        trustedDevice?.userId === decodedToken.uid &&
+        trustedDevice.trustVersion === mfaTrustVersion;
+
+      if (customMfaEnabled && !deviceIsTrusted && !result.data.mfaCode) {
         return errorResponse(
           {
             code: "MFA_REQUIRED",
@@ -103,6 +131,7 @@ export async function POST(request: NextRequest) {
       }
       if (
         customMfaEnabled &&
+        !deviceIsTrusted &&
         result.data.mfaCode &&
         !(await mfaRepository.verify(decodedToken.uid, result.data.mfaCode))
       ) {
@@ -112,6 +141,12 @@ export async function POST(request: NextRequest) {
           401,
         );
       }
+      shouldRememberDevice =
+        customMfaEnabled &&
+        !deviceIsTrusted &&
+        Boolean(result.data.mfaCode) &&
+        result.data.rememberDevice &&
+        Boolean(mfaTrustVersion);
     } catch {
       return errorResponse(
         {
@@ -137,6 +172,19 @@ export async function POST(request: NextRequest) {
       sessionUser,
       { ex: sessionConfiguration.maxAgeSeconds },
     );
+    let trustedDeviceId: string | null = null;
+    if (shouldRememberDevice && mfaTrustVersion) {
+      trustedDeviceId = crypto.randomUUID();
+      await getAdminFirestore().set(
+        envaultRedisKey("mfa-trusted-device", trustedDeviceId),
+        {
+          userId: decodedToken.uid,
+          trustVersion: mfaTrustVersion,
+          createdAt: new Date().toISOString(),
+        } satisfies TrustedMfaDevice,
+        { ex: trustedDeviceMaxAgeSeconds },
+      );
+    }
     const response = successResponse(
       {
         user: sessionUser,
@@ -152,6 +200,14 @@ export async function POST(request: NextRequest) {
         process.env.NODE_ENV === "production" ? "; Secure" : ""
       }`,
     );
+    if (trustedDeviceId) {
+      response.headers.append(
+        "Set-Cookie",
+        `${trustedDeviceCookieName}=${trustedDeviceId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${trustedDeviceMaxAgeSeconds}${
+          process.env.NODE_ENV === "production" ? "; Secure" : ""
+        }`,
+      );
+    }
     return response;
   } catch (error) {
     if (

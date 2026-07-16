@@ -25,6 +25,14 @@ export class MfaRepository {
     return { enabled: document?.enabled === true };
   }
 
+  public async trustStatus(userId: string) {
+    const document = await this.redis.get<MfaDocument>(keyFor(userId));
+    return {
+      enabled: document?.enabled === true,
+      trustVersion: document?.createdAt ?? null,
+    };
+  }
+
   public async begin(userId: string, secret: string) {
     const timestamp = new Date().toISOString();
     await this.redis.set(keyFor(userId), {
