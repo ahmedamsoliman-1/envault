@@ -4,7 +4,9 @@ packages:
 
 allowBuilds:
   "@firebase/util": true
+  "@vscode/vsce-sign": true
   esbuild: true
+  keytar: true
   protobufjs: true
   re2: true
   sharp: true

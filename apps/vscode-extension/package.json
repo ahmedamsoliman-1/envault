@@ -1,10 +1,27 @@
 {
-  "name": "@envault/vscode-extension",
+  "name": "envault-vscode",
   "displayName": "Envault",
   "description": "Secure environment management from VS Code.",
   "version": "0.1.0",
-  "private": true,
   "publisher": "envault",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ahmedamsoliman-1/envault.git",
+    "directory": "apps/vscode-extension"
+  },
+  "homepage": "https://github.com/ahmedamsoliman-1/envault#readme",
+  "icon": "images/icon.png",
+  "bugs": {
+    "url": "https://github.com/ahmedamsoliman-1/envault/issues"
+  },
+  "keywords": [
+    "dotenv",
+    "environment",
+    "secrets",
+    "security",
+    "envault"
+  ],
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -42,14 +59,18 @@
       "properties": {
         "envault.serverUrl": {
           "type": "string",
-          "default": "http://localhost:3000",
+          "default": "https://env.aamsdn.space",
           "description": "Envault server URL."
         }
       }
     }
   },
   "scripts": {
-    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js",
+    "vscode:prepublish": "pnpm run build",
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --minify --sourcemap --outfile=dist/extension.js",
+    "package:vsix": "vsce package --pre-release --no-dependencies",
+    "publish:pre": "vsce publish --pre-release --no-dependencies",
+    "publish": "vsce publish --no-dependencies",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
@@ -58,6 +79,8 @@
     "@envault/api-client": "workspace:*"
   },
   "devDependencies": {
-    "@types/vscode": "^1.100.0"
+    "@types/vscode": "^1.100.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.1"
   }
 }

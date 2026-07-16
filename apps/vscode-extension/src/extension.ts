@@ -4,11 +4,12 @@ import { hostname } from "node:os";
 import * as vscode from "vscode";
 
 const tokenKey = "envault.deviceAccessToken";
+const defaultServerUrl = "https://env.aamsdn.space";
 
 function serverUrl() {
   return vscode.workspace
     .getConfiguration("envault")
-    .get<string>("serverUrl", "http://localhost:3000")
+    .get<string>("serverUrl", defaultServerUrl)
     .replace(/\/$/u, "");
 }
 
