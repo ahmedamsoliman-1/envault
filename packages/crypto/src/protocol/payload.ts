@@ -20,7 +20,9 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 function encodeAdditionalData(data: VariableAdditionalData) {
   return encoder.encode(
     [
-      "keep",
+      // Legacy AAD label retained after the Envault->Keep rebrand.
+      // Do NOT change: it is bound into every existing variable ciphertext.
+      "envault",
       "variable",
       "v1",
       data.vaultId,

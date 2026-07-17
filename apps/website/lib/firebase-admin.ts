@@ -39,7 +39,7 @@ export function getMfaConfiguration() {
   }
   return {
     encryptionKey: environment.MFA_ENCRYPTION_KEY,
-    trustedDeviceCookieName: "keep_mfa_trust",
+    trustedDeviceCookieName: "envault_mfa_trust",
     trustedDeviceMaxAgeSeconds: environment.DEVICE_SESSION_MAX_AGE_SECONDS,
   };
 }

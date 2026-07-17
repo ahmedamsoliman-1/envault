@@ -9,7 +9,7 @@ const serverEnvironmentSchema = z.object({
     .string()
     .min(1)
     .transform((value) => value.replaceAll("\\n", "\n")),
-  SESSION_COOKIE_NAME: z.string().min(1).default("keep_session"),
+  SESSION_COOKIE_NAME: z.string().min(1).default("envault_session"),
   SESSION_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(432_000),
   DEVICE_AUTHORIZATION_TTL_SECONDS: z.coerce
     .number()

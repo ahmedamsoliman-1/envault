@@ -30,7 +30,7 @@ export class KeepTreeProvider implements vscode.TreeDataProvider<KeepNode> {
   constructor(private readonly context: vscode.ExtensionContext) {
     stateChanged.event(() => this.#onDidChangeTreeData.fire());
     context.secrets.onDidChange((event) => {
-      if (event.key === "keep.deviceAccessToken")
+      if (event.key === "envault.deviceAccessToken")
         this.#onDidChangeTreeData.fire();
     });
   }

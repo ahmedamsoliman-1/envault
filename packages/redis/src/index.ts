@@ -1,6 +1,8 @@
 import { createClient } from "redis";
 
-export const KEEP_REDIS_PREFIX = "keep:v1";
+// Legacy namespace retained for data continuity after the Envault->Keep rebrand.
+// Do NOT change: all existing keys (vaults, projects, environments, devices) use it.
+export const KEEP_REDIS_PREFIX = "envault:v1";
 
 export function keepRedisKey(...parts: string[]) {
   return [KEEP_REDIS_PREFIX, ...parts].join(":");

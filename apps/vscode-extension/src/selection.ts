@@ -13,7 +13,7 @@ export interface EnvironmentBinding {
 }
 
 function bindingKey(folder: vscode.WorkspaceFolder): string {
-  return `keep.binding:${folder.uri.toString()}`;
+  return `envault.binding:${folder.uri.toString()}`;
 }
 
 export function getBinding(

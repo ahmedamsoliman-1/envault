@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
     let customMfaEnabled = false;
     let mfaTrustVersion: string | null = null;
-    let trustedDeviceCookieName = "keep_mfa_trust";
+    let trustedDeviceCookieName = "envault_mfa_trust";
     let trustedDeviceMaxAgeSeconds = 2_592_000;
     let shouldRememberDevice = false;
     try {
