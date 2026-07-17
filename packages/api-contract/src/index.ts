@@ -147,6 +147,14 @@ export const vaultSettingsSchema = z.object({
   pbkdf2Iterations: z.number().int().min(600_000).max(10_000_000),
 });
 
+export const deviceWrappedVaultKeySchema = z.object({
+  vaultId: z.string().min(1),
+  wrappedKey: wrappedVaultKeyV1Schema,
+});
+export const deviceVaultKeyStatusSchema = z.object({
+  wrapped: deviceWrappedVaultKeySchema.nullable(),
+});
+
 export const projectDtoSchema = z.object({
   id: z.string().min(1),
   vaultId: z.string().min(1),
@@ -344,6 +352,10 @@ export type DeviceAuthorizationResponse = z.infer<
   typeof deviceAuthorizationResponseSchema
 >;
 export type DeviceSession = z.infer<typeof deviceSessionSchema>;
+export type DeviceWrappedVaultKey = z.infer<
+  typeof deviceWrappedVaultKeySchema
+>;
+export type DeviceVaultKeyStatus = z.infer<typeof deviceVaultKeyStatusSchema>;
 export type UpdateProfileRequest = z.infer<typeof updateProfileRequestSchema>;
 export type CreateVaultRequest = z.infer<typeof createVaultRequestSchema>;
 export type VaultDto = z.infer<typeof vaultDtoSchema>;

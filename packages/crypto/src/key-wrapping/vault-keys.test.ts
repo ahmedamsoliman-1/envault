@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { CryptoProvider } from "../protocol/crypto-provider";
 import {
   createVaultKeyMaterial,
+  unlockVaultWithDeviceSecret,
   unlockVaultWithPassphrase,
   unlockVaultWithRecoveryKey,
+  wrapVaultKeyWithDeviceSecret,
 } from "./vault-keys";
 
 const provider = globalThis.crypto as CryptoProvider;
@@ -51,6 +53,36 @@ describe("vault key wrapping", () => {
         "the incorrect passphrase",
         created.material,
       ),
+    ).rejects.toThrow();
+  });
+
+  it("unwraps the vault key with a device secret and rejects the wrong one", async () => {
+    const vaultId = "b4e3f0a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b";
+    const created = await createVaultKeyMaterial(
+      provider,
+      vaultId,
+      "a strong vault passphrase",
+      iterations,
+    );
+    const deviceSecret = provider.getRandomValues(new Uint8Array(32));
+    const wrapped = await wrapVaultKeyWithDeviceSecret(
+      provider,
+      vaultId,
+      created.vaultKey,
+      deviceSecret,
+    );
+
+    const unwrapped = await unlockVaultWithDeviceSecret(
+      provider,
+      vaultId,
+      wrapped,
+      deviceSecret,
+    );
+    expect(unwrapped).toEqual(created.vaultKey);
+
+    const wrongSecret = provider.getRandomValues(new Uint8Array(32));
+    await expect(
+      unlockVaultWithDeviceSecret(provider, vaultId, wrapped, wrongSecret),
     ).rejects.toThrow();
   });
 

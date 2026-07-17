@@ -1703,9 +1703,9 @@ serve its first external client.
       or Firebase.
 - [x] Select projects and environments.
 - [x] Package and publish the initial Marketplace pre-release.
-- [ ] Pull remote environments into local dotenv files.
-- [ ] Push updates with expected-version and idempotency protection.
-- [ ] Present refresh, overwrite and merge choices for HTTP 409 conflicts.
+- [x] Pull remote environments into local dotenv files. *(delivered in Phase 11, Stage C.)*
+- [x] Push updates with expected-version and idempotency protection. *(delivered in Phase 11, Stage D.)*
+- [x] Present refresh, overwrite and merge choices for HTTP 409 conflicts. *(delivered in Phase 11, Stage D.)*
 - [x] Document extension security, session scopes and revocation.
 
 ### Dashboard reconciliation
@@ -1886,3 +1886,111 @@ Do not leave critical features as mock buttons.
 Do not store realistic example credentials.
 
 When a Firebase feature requires manual console configuration, implement the application side and document the exact console steps.
+
+---
+
+# Phase 11 — VS Code Extension Maturity
+
+The extension today authenticates through browser-based device authorization and
+can list projects and environments, but it never touches `@envault/crypto`. It
+can read metadata only — it cannot decrypt or write a single variable value. This
+phase turns it into a tool a developer actually installs: **pull an environment
+into `.env`, edit safely, and push back — without plaintext ever leaving the
+machine, and without clobbering another client's changes.**
+
+All primitives already exist. `vault.get()` returns the wrapped vault-key
+material and derivation metadata; `@envault/crypto` provides
+`unlockVaultWithPassphrase`, `unlockVaultWithRecoveryKey`,
+`encryptVariableValue` and `decryptVariableValue`; `@envault/dotenv` provides the
+shared parser and serializer; and Node's global `crypto.subtle` lets the existing
+browser provider run unchanged in the extension host. This phase is wiring and
+UX, not new cryptography.
+
+## Design decisions
+
+* **Unlock once per device.** The user is not asked for their passphrase on every
+  session. On first unlock (passphrase or recovery key) the extension creates a
+  **device-wrapped copy** of the vault key. The random device secret is kept in
+  VS Code `SecretStorage`; the device-wrapped key material is stored **server-side,
+  bound to the current device session**, so revoking the device from the web
+  invalidates the wrapping record and disables silent unlock. Neither the
+  passphrase, the recovery key, nor the unwrapped vault key is ever persisted.
+* **Unwrapped vault key lives in memory only** and is cleared on lock, sign-out,
+  auto-lock expiry and window close — matching Plan §17.
+* **Reuse shared packages.** `@envault/crypto` and `@envault/dotenv` only; the
+  extension continues to use `/api/v1` through `@envault/api-client` and never
+  connects directly to Redis or Firebase.
+
+### Stage A — Local decryption foundation
+
+- [x] Add `@envault/crypto` and `@envault/dotenv` as extension dependencies.
+- [x] Expose a `getNodeCryptoProvider()` in `packages/crypto` (thin alias over the
+      existing provider using the Node global `crypto`); assert `subtle` is present.
+- [x] Add an in-memory vault-key holder with an auto-lock timer sourced from vault
+      settings; clear it on lock, sign-out, expiry and `deactivate`.
+- [x] `Envault: Unlock vault` — prompt for passphrase or recovery key via a masked
+      input, fetch `vault.get()`, derive and unwrap the key, hold it in memory.
+- [x] `Envault: Lock vault`.
+
+### Stage B — Device-wrapped key (no repeated passphrase)
+
+- [x] Add a `"device"` purpose to the key-wrapping additional-data union in
+      `packages/crypto`.
+- [x] On first successful unlock, generate a random 32-byte device secret, wrap the
+      vault key with it, and store the secret in `SecretStorage`.
+- [x] Add endpoints to store and fetch the device-wrapped key material bound to the
+      current device session (`PUT`/`GET`/`DELETE /api/v1/device/vault-key`); persist
+      only ciphertext and IV — never the device secret or any plaintext.
+- [x] On later sessions, fetch the wrapped material and combine it with the local
+      device secret to unwrap silently — no passphrase prompt.
+- [x] Revoking the device session from the web invalidates the wrapping record; the
+      extension falls back to passphrase unlock.
+
+### Stage C — Pull
+
+- [x] `Envault: Pull environment` — decrypt every variable locally and serialize with
+      `@envault/dotenv` into a workspace `.env` file.
+- [x] Warn and show a diff before overwriting an existing `.env`.
+- [x] Remember the target file per environment.
+
+### Stage D — Push with concurrency safety
+
+- [x] `Envault: Push environment` — parse the local `.env` with `@envault/dotenv` and
+      show a preview classifying variables as new, updated, unchanged or invalid.
+- [x] Encrypt values locally, then commit via the import endpoint with an expected
+      environment version and a per-chunk idempotency key.
+- [x] On HTTP 409, present Overwrite / Compare-&-merge choices; re-plan against the
+      latest version so retries never push stale data.
+
+### Stage E — Native UX
+
+- [x] Status-bar item showing lock state and the selected `project / environment`,
+      clickable to open Envault quick actions.
+- [x] Activity Bar tree view: projects → environments → variables (masked keys), with
+      pull and push from context menus. *(In-tree temporary reveal deferred — reveal
+      is available by pulling into `.env`.)*
+- [x] `.env` compare against remote (on-demand diff during pull and push conflicts).
+      *(A standing CodeLens drift indicator is deferred.)*
+- [x] Per-workspace-folder environment binding for multi-root workspaces.
+
+### Stage F — Hardening and Marketplace
+
+- [x] Unit tests for push preview/conflict classification and device-key wrapping.
+- [ ] Integration test driving pull/push against a mock `EnvaultClient`. *(Deferred —
+      requires a VS Code test host harness.)*
+- [x] Secret-leak review: no plaintext values, passphrases, recovery keys, device
+      secrets or vault keys in logs, notifications, telemetry or workspace state.
+- [x] First-run `walkthrough` contribution and updated `README`/`CHANGELOG`.
+- [x] Scope `activationEvents` (`onView:envault.explorer`); handle expired and revoked
+      sessions gracefully.
+
+### Acceptance criteria
+
+- [x] The unwrapped vault key exists only in memory; nothing persistent holds the
+      passphrase, recovery key or unwrapped key.
+- [x] The passphrase is entered at most once per device until the device is revoked.
+- [x] Pull writes a correct decrypted `.env`; push round-trips without any plaintext
+      leaving the machine.
+- [x] Stale pushes return HTTP 409 and surface Overwrite / Compare-&-merge.
+- [x] Revoking the device from the web disables silent unlock.
+- [x] Lint, typecheck, unit tests and the extension build pass.

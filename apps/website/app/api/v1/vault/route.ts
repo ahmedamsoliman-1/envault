@@ -9,22 +9,31 @@ import {
 } from "@/lib/api-response";
 import { isEmailVerificationRequired } from "@/lib/features";
 import { getAdminFirestore } from "@/lib/firebase-admin";
+import { getRequestPrincipal } from "@/lib/request-auth";
 import { hasTrustedOrigin } from "@/lib/request-security";
 import { getSessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID();
-  const user = await getSessionUser();
-  if (!user) {
+  // Device clients (e.g. the VS Code extension) authenticate with a scoped
+  // Bearer token and need the wrapped key material to unlock locally. The
+  // wrapped key is encrypted and useless without the passphrase or recovery
+  // key, so exposing it to an owner-scoped device session is safe.
+  const principal = await getRequestPrincipal(request, "environments:read");
+  if (!principal) {
     return errorResponse(
       { code: "UNAUTHENTICATED", message: "Authentication is required." },
       requestId,
       401,
     );
   }
-  if (isEmailVerificationRequired() && !user.emailVerified) {
+  if (
+    principal.kind === "user" &&
+    isEmailVerificationRequired() &&
+    !principal.user.emailVerified
+  ) {
     return errorResponse(
       {
         code: "EMAIL_NOT_VERIFIED",
@@ -37,7 +46,7 @@ export async function GET() {
 
   try {
     const repository = new FirestoreVaultRepository(getAdminFirestore());
-    const vault = await repository.findByOwnerId(user.id);
+    const vault = await repository.findByOwnerId(principal.id);
     return successResponse({ exists: vault !== null, vault }, requestId);
   } catch {
     return errorResponse(

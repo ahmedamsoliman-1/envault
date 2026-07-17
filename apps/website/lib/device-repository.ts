@@ -1,6 +1,10 @@
 import "server-only";
 
-import type { DeviceScope, DeviceSession } from "@envault/api-contract";
+import type {
+  DeviceScope,
+  DeviceSession,
+  DeviceWrappedVaultKey,
+} from "@envault/api-contract";
 import { envaultRedisKey, type EnvaultRedis } from "@envault/redis";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -23,11 +27,17 @@ interface StoredDeviceSession extends DeviceSession {
   tokenHash: string;
 }
 
+interface StoredDeviceVaultKey extends DeviceWrappedVaultKey {
+  ownerId: string;
+}
+
 const authorizationKey = (id: string) =>
   envaultRedisKey("device-authorization", id);
 const userCodeKey = (code: string) => envaultRedisKey("device-user-code", code);
 const sessionKey = (id: string) => envaultRedisKey("device-session", id);
 const sessionTokenKey = (hash: string) => envaultRedisKey("device-token", hash);
+const sessionVaultKeyKey = (id: string) =>
+  envaultRedisKey("device-session-vault-key", id);
 const ownerSessionsKey = (ownerId: string) =>
   envaultRedisKey("user", ownerId, "device-sessions");
 
@@ -180,11 +190,59 @@ export class DeviceRepository {
     return session;
   }
 
+  /**
+   * Stores the device-wrapped vault key bound to a device session. Only the
+   * ciphertext and IV of the wrapped key are persisted — never the device
+   * secret or any plaintext. The record inherits the session lifetime and is
+   * removed when the session is revoked, so revocation disables silent unlock.
+   */
+  public async storeVaultKey(
+    sessionId: string,
+    ownerId: string,
+    wrapped: DeviceWrappedVaultKey,
+  ) {
+    const session = await this.redis.get<StoredDeviceSession>(
+      sessionKey(sessionId),
+    );
+    if (!session || session.ownerId !== ownerId) return false;
+    const ttlSeconds = Math.max(
+      1,
+      Math.floor((new Date(session.expiresAt).getTime() - Date.now()) / 1_000),
+    );
+    const record: StoredDeviceVaultKey = { ownerId, ...wrapped };
+    await this.redis.set(sessionVaultKeyKey(sessionId), record, {
+      ex: ttlSeconds,
+    });
+    return true;
+  }
+
+  public async getVaultKey(sessionId: string, ownerId: string) {
+    const record = await this.redis.get<StoredDeviceVaultKey>(
+      sessionVaultKeyKey(sessionId),
+    );
+    if (!record || record.ownerId !== ownerId) return null;
+    const wrapped: DeviceWrappedVaultKey = {
+      vaultId: record.vaultId,
+      wrappedKey: record.wrappedKey,
+    };
+    return wrapped;
+  }
+
+  public async deleteVaultKey(sessionId: string, ownerId: string) {
+    const record = await this.redis.get<StoredDeviceVaultKey>(
+      sessionVaultKeyKey(sessionId),
+    );
+    if (record && record.ownerId !== ownerId) return false;
+    await this.redis.del(sessionVaultKeyKey(sessionId));
+    return true;
+  }
+
   public async revoke(ownerId: string, id: string) {
     const session = await this.redis.get<StoredDeviceSession>(sessionKey(id));
     if (!session || session.ownerId !== ownerId) return false;
     await this.redis.del(sessionKey(id));
     await this.redis.del(sessionTokenKey(session.tokenHash));
+    await this.redis.del(sessionVaultKeyKey(id));
     const ids =
       (await this.redis.get<string[]>(ownerSessionsKey(ownerId))) ?? [];
     await this.redis.set(

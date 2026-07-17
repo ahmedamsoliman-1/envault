@@ -18,7 +18,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 function wrappingAdditionalData(
   vaultId: string,
-  purpose: "passphrase" | "recovery" | "biometric",
+  purpose: "passphrase" | "recovery" | "biometric" | "device",
 ) {
   return textEncoder.encode(`envault:v1:vault-key:${vaultId}:${purpose}`);
 }
@@ -55,7 +55,7 @@ async function wrapVaultKey(
   vaultKey: Uint8Array,
   wrappingKey: CryptoKey,
   vaultId: string,
-  purpose: "passphrase" | "recovery" | "biometric",
+  purpose: "passphrase" | "recovery" | "biometric" | "device",
 ): Promise<WrappedVaultKeyV1> {
   const iv = provider.getRandomValues(new Uint8Array(IV_BYTES));
   const ciphertext = await provider.subtle.encrypt(
@@ -83,7 +83,7 @@ async function unwrapVaultKey(
   wrappedKey: WrappedVaultKeyV1,
   wrappingKey: CryptoKey,
   vaultId: string,
-  purpose: "passphrase" | "recovery" | "biometric",
+  purpose: "passphrase" | "recovery" | "biometric" | "device",
 ) {
   const plaintext = await provider.subtle.decrypt(
     {
@@ -205,20 +205,53 @@ export async function unlockVaultWithRecoveryKey(
   );
 }
 
-async function importBiometricWrappingKey(
+async function importRawWrappingKey(
   provider: CryptoProvider,
-  prfOutput: Uint8Array,
+  secret: Uint8Array,
 ) {
-  if (prfOutput.length !== 32) {
-    throw new Error("INVALID_BIOMETRIC_KEY_MATERIAL");
+  if (secret.length !== 32) {
+    throw new Error("INVALID_RAW_KEY_MATERIAL");
   }
   return provider.subtle.importKey(
     "raw",
-    toArrayBuffer(prfOutput),
+    toArrayBuffer(secret),
     { name: "AES-GCM" },
     false,
     ["encrypt", "decrypt"],
   );
+}
+
+async function importBiometricWrappingKey(
+  provider: CryptoProvider,
+  prfOutput: Uint8Array,
+) {
+  return importRawWrappingKey(provider, prfOutput);
+}
+
+/**
+ * Wraps the vault key with a random device secret so a trusted client (e.g. the
+ * VS Code extension) can unlock without re-entering the passphrase. The device
+ * secret is generated and held by the client; only the returned wrapped material
+ * is safe to persist server-side, bound to a revocable device session.
+ */
+export async function wrapVaultKeyWithDeviceSecret(
+  provider: CryptoProvider,
+  vaultId: string,
+  vaultKey: Uint8Array,
+  deviceSecret: Uint8Array,
+) {
+  const wrappingKey = await importRawWrappingKey(provider, deviceSecret);
+  return wrapVaultKey(provider, vaultKey, wrappingKey, vaultId, "device");
+}
+
+export async function unlockVaultWithDeviceSecret(
+  provider: CryptoProvider,
+  vaultId: string,
+  wrappedKey: WrappedVaultKeyV1,
+  deviceSecret: Uint8Array,
+) {
+  const wrappingKey = await importRawWrappingKey(provider, deviceSecret);
+  return unwrapVaultKey(provider, wrappedKey, wrappingKey, vaultId, "device");
 }
 
 export async function wrapVaultKeyWithBiometricSecret(

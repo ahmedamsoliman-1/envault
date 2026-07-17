@@ -84,4 +84,50 @@ describe("DeviceRepository", () => {
     );
     await expect(repository.listSessions("owner")).resolves.toEqual([]);
   });
+
+  it("stores, isolates and revokes the device-wrapped vault key", async () => {
+    const repository = new DeviceRepository(new MemoryRedis());
+    const verifier = "c".repeat(48);
+    const codeChallenge = createHash("sha256")
+      .update(verifier)
+      .digest("base64url");
+    const authorization = await repository.createAuthorization({
+      deviceName: "Developer Mac",
+      clientName: "Envault for VS Code",
+      scopes: ["variables:read", "variables:write"],
+      codeChallenge,
+      ttlSeconds: 600,
+    });
+    await repository.approve(authorization.id, "owner", authorization.userCode);
+    const exchanged = await repository.exchange(authorization.id, verifier, 3_600);
+    if (!("session" in exchanged) || !exchanged.session)
+      throw new Error("Expected a session.");
+    const sessionId = exchanged.session.id;
+
+    const wrapped = {
+      vaultId: "vault-1",
+      wrappedKey: {
+        version: 1 as const,
+        algorithm: "AES-GCM" as const,
+        ciphertext: "cipher",
+        iv: "iv",
+        additionalDataVersion: 1 as const,
+      },
+    };
+
+    await expect(
+      repository.storeVaultKey(sessionId, "owner", wrapped),
+    ).resolves.toBe(true);
+    await expect(repository.getVaultKey(sessionId, "owner")).resolves.toEqual(
+      wrapped,
+    );
+    // A different owner must never read this device's wrapped key.
+    await expect(
+      repository.getVaultKey(sessionId, "intruder"),
+    ).resolves.toBeNull();
+
+    // Revoking the session removes the wrapped key, disabling silent unlock.
+    await repository.revoke("owner", sessionId);
+    await expect(repository.getVaultKey(sessionId, "owner")).resolves.toBeNull();
+  });
 });

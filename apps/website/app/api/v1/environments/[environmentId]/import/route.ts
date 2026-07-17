@@ -8,29 +8,26 @@ import {
   successResponse,
 } from "@/lib/api-response";
 import { getAdminFirestore } from "@/lib/firebase-admin";
-import { hasTrustedOrigin } from "@/lib/request-security";
-import { getSessionUser } from "@/lib/session";
+import { getWriteAccess } from "@/lib/request-auth";
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ environmentId: string }> },
 ) {
   const requestId = crypto.randomUUID();
-  if (!hasTrustedOrigin(request)) {
-    return errorResponse(
-      { code: "FORBIDDEN", message: "The request origin is not allowed." },
-      requestId,
-      403,
-    );
-  }
-
-  const user = await getSessionUser();
-  if (!user) {
-    return errorResponse(
-      { code: "UNAUTHENTICATED", message: "Authentication is required." },
-      requestId,
-      401,
-    );
+  const access = await getWriteAccess(request, "variables:write");
+  if (!access.ok) {
+    return access.reason === "forbidden"
+      ? errorResponse(
+          { code: "FORBIDDEN", message: "The request origin is not allowed." },
+          requestId,
+          403,
+        )
+      : errorResponse(
+          { code: "UNAUTHENTICATED", message: "Authentication is required." },
+          requestId,
+          401,
+        );
   }
 
   const parsed = importEnvironmentRequestSchema.safeParse(
@@ -42,7 +39,7 @@ export async function POST(
   try {
     const result = await new FirestoreEnvironmentRepository(
       getAdminFirestore(),
-    ).importVariables(user.id, environmentId, parsed.data);
+    ).importVariables(access.ownerId, environmentId, parsed.data);
 
     if (!result) {
       return errorResponse(

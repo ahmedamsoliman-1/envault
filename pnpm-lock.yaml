@@ -47,6 +47,15 @@ importers:
       '@envault/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@envault/api-contract':
+        specifier: workspace:*
+        version: link:../../packages/api-contract
+      '@envault/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
+      '@envault/dotenv':
+        specifier: workspace:*
+        version: link:../../packages/dotenv
     devDependencies:
       '@types/vscode':
         specifier: ^1.100.0

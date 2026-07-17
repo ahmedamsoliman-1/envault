@@ -1,147 +1,120 @@
-import { EnvaultApiError, EnvaultClient } from "@envault/api-client";
-import { createHash, randomBytes } from "node:crypto";
-import { hostname } from "node:os";
+import type { EnvironmentDto, ProjectDto } from "@envault/api-contract";
 import * as vscode from "vscode";
 
-const tokenKey = "envault.deviceAccessToken";
-const defaultServerUrl = "https://env.aamsdn.space";
+import { showStatus, signIn, signOut } from "./auth";
+import { getAccessToken } from "./client";
+import { stateChanged } from "./events";
+import { pullEnvironment } from "./pull";
+import { pushEnvironment } from "./push";
+import {
+  bindTarget,
+  selectEnvironment,
+  type ResolvedTarget,
+} from "./selection";
+import { createStatusBar } from "./status-bar";
+import { EnvaultTreeProvider } from "./tree";
+import { ensureUnlocked } from "./unlock";
+import { VaultSession } from "./vault-session";
 
-function serverUrl() {
-  return vscode.workspace
-    .getConfiguration("envault")
-    .get<string>("serverUrl", defaultServerUrl)
-    .replace(/\/$/u, "");
+interface EnvironmentNodeArg {
+  kind: "environment";
+  project: ProjectDto;
+  environment: EnvironmentDto;
 }
 
-const sleep = (milliseconds: number) =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
+/** Resolves a tree context-menu argument into an explicit push/pull target. */
+async function targetFromArg(
+  context: vscode.ExtensionContext,
+  arg: unknown,
+): Promise<ResolvedTarget | undefined> {
+  const node = arg as EnvironmentNodeArg | undefined;
+  if (node?.kind !== "environment") return undefined;
+  return bindTarget(context, node.project, node.environment);
+}
+
+async function quickActions(
+  context: vscode.ExtensionContext,
+  session: VaultSession,
+): Promise<void> {
+  const connected = (await getAccessToken(context)) !== null;
+  if (!connected) {
+    await vscode.commands.executeCommand("envault.signIn");
+    return;
+  }
+  const actions: { label: string; command: string }[] = [
+    { label: "$(cloud-download) Pull environment → .env", command: "envault.pull" },
+    { label: "$(cloud-upload) Push .env → environment", command: "envault.push" },
+    { label: "$(list-selection) Select environment", command: "envault.selectEnvironment" },
+    session.isUnlocked
+      ? { label: "$(lock) Lock vault", command: "envault.lock" }
+      : { label: "$(unlock) Unlock vault", command: "envault.unlock" },
+    { label: "$(sign-out) Sign out", command: "envault.signOut" },
+  ];
+  const pick = await vscode.window.showQuickPick(actions, {
+    placeHolder: "Envault",
+  });
+  if (pick) await vscode.commands.executeCommand(pick.command);
+}
+
+async function bindEnvironment(
+  context: vscode.ExtensionContext,
+  project: ProjectDto,
+  environment: EnvironmentDto,
+): Promise<void> {
+  const target = await bindTarget(context, project, environment);
+  if (target) {
+    void vscode.window.showInformationMessage(
+      `Envault: ${target.folder.name} → ${project.name} / ${environment.name}`,
+    );
+  }
+}
 
 export function activate(context: vscode.ExtensionContext) {
+  const session = new VaultSession();
+  const tree = new EnvaultTreeProvider(context);
+
   context.subscriptions.push(
-    vscode.commands.registerCommand("envault.signIn", async () => {
-      const verifier = randomBytes(48).toString("base64url");
-      const challenge = createHash("sha256")
-        .update(verifier)
-        .digest("base64url");
-      const client = new EnvaultClient({ baseUrl: serverUrl() });
-      try {
-        const authorization = await client.devices.createAuthorization({
-          deviceName: hostname(),
-          clientName: "Envault for VS Code",
-          codeChallenge: challenge,
-          scopes: [
-            "projects:read",
-            "environments:read",
-            "variables:read",
-            "variables:write",
-          ],
-        });
-        await vscode.env.openExternal(
-          vscode.Uri.parse(authorization.verificationUri),
-        );
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: `Approve Envault code ${authorization.userCode}`,
-            cancellable: true,
-          },
-          async (_progress, cancellation) => {
-            while (
-              !cancellation.isCancellationRequested &&
-              Date.now() < new Date(authorization.expiresAt).getTime()
-            ) {
-              const result = await client.devices.exchange(
-                authorization.authorizationId,
-                verifier,
-              );
-              if (result.status === "authorized") {
-                await context.secrets.store(tokenKey, result.accessToken);
-                void vscode.window.showInformationMessage(
-                  `Envault connected as ${result.session.deviceName}.`,
-                );
-                return;
-              }
-              await sleep(authorization.intervalSeconds * 1_000);
-            }
-            throw new Error("Device authorization was cancelled or expired.");
-          },
-        );
-      } catch (error) {
-        const message =
-          error instanceof EnvaultApiError || error instanceof Error
-            ? error.message
-            : "Envault sign-in failed.";
-        void vscode.window.showErrorMessage(message);
+    vscode.commands.registerCommand("envault.signIn", () => signIn(context)),
+    vscode.commands.registerCommand("envault.signOut", () =>
+      signOut(context, session),
+    ),
+    vscode.commands.registerCommand("envault.status", () =>
+      showStatus(context, session),
+    ),
+    vscode.commands.registerCommand("envault.selectEnvironment", () =>
+      selectEnvironment(context),
+    ),
+    vscode.commands.registerCommand("envault.unlock", async () => {
+      const unlocked = await ensureUnlocked(context, session);
+      if (unlocked) {
+        unlocked.key.fill(0);
+        void vscode.window.showInformationMessage("Envault vault unlocked.");
       }
     }),
-    vscode.commands.registerCommand("envault.signOut", async () => {
-      await context.secrets.delete(tokenKey);
-      void vscode.window.showInformationMessage(
-        "The local Envault device credential was removed.",
-      );
+    vscode.commands.registerCommand("envault.lock", () => {
+      session.lock();
+      void vscode.window.showInformationMessage("Envault vault locked.");
     }),
-    vscode.commands.registerCommand("envault.status", async () => {
-      const token = await context.secrets.get(tokenKey);
-      void vscode.window.showInformationMessage(
-        token
-          ? `Envault is connected to ${serverUrl()}.`
-          : "Envault is not connected.",
-      );
-    }),
-    vscode.commands.registerCommand("envault.selectEnvironment", async () => {
-      const token = await context.secrets.get(tokenKey);
-      if (!token) {
-        void vscode.window.showWarningMessage(
-          "Sign in to Envault before selecting an environment.",
-        );
-        return;
-      }
-      const client = new EnvaultClient({
-        baseUrl: serverUrl(),
-        getAccessToken: () => Promise.resolve(token),
-      });
-      try {
-        const { projects } = await client.projects.list();
-        const project = await vscode.window.showQuickPick(
-          projects.map((item) => ({
-            label: item.name,
-            description: item.description ?? undefined,
-            project: item,
-          })),
-          { placeHolder: "Select an Envault project" },
-        );
-        if (!project) return;
-        const { environments } = await client.environments.list(
-          project.project.id,
-        );
-        const environment = await vscode.window.showQuickPick(
-          environments.map((item) => ({
-            label: item.name,
-            description: `${item.kind} · version ${item.version}`,
-            environment: item,
-          })),
-          { placeHolder: "Select an Envault environment" },
-        );
-        if (!environment) return;
-        await context.workspaceState.update(
-          "envault.selectedProjectId",
-          project.project.id,
-        );
-        await context.workspaceState.update(
-          "envault.selectedEnvironmentId",
-          environment.environment.id,
-        );
-        void vscode.window.showInformationMessage(
-          `Envault environment selected: ${project.label} / ${environment.label}`,
-        );
-      } catch (error) {
-        void vscode.window.showErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "The Envault environment could not be selected.",
-        );
-      }
-    }),
+    vscode.commands.registerCommand("envault.pull", async (arg?: unknown) =>
+      pullEnvironment(context, session, await targetFromArg(context, arg)),
+    ),
+    vscode.commands.registerCommand("envault.push", async (arg?: unknown) =>
+      pushEnvironment(context, session, await targetFromArg(context, arg)),
+    ),
+    vscode.commands.registerCommand("envault.quickActions", () =>
+      quickActions(context, session),
+    ),
+    vscode.commands.registerCommand("envault.refresh", () => tree.refresh()),
+    vscode.commands.registerCommand(
+      "envault.bindEnvironment",
+      (project: ProjectDto, environment: EnvironmentDto) =>
+        bindEnvironment(context, project, environment),
+    ),
+    session,
+    createStatusBar(context, session),
+    vscode.window.registerTreeDataProvider("envault.explorer", tree),
+    stateChanged.event(() => tree.refresh()),
+    stateChanged,
   );
 }
 

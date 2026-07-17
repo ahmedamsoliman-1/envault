@@ -9,6 +9,8 @@ import type {
   CreateDeviceAuthorizationRequest,
   DeviceAuthorizationResponse,
   DeviceSession,
+  DeviceVaultKeyStatus,
+  DeviceWrappedVaultKey,
   EnvironmentDto,
   ImportEnvironmentRequest,
   ImportEnvironmentResponse,
@@ -236,6 +238,17 @@ export class EnvaultClient {
       this.request<DeviceSession[]>("/api/v1/device-sessions"),
     revokeSession: (sessionId: string) =>
       this.request<{ revoked: true }>(`/api/v1/device-sessions/${sessionId}`, {
+        method: "DELETE",
+      }),
+    getVaultKey: () =>
+      this.request<DeviceVaultKeyStatus>("/api/v1/device/vault-key"),
+    putVaultKey: (input: DeviceWrappedVaultKey) =>
+      this.request<DeviceWrappedVaultKey>("/api/v1/device/vault-key", {
+        method: "PUT",
+        body: JSON.stringify(input),
+      }),
+    deleteVaultKey: () =>
+      this.request<{ deleted: true }>("/api/v1/device/vault-key", {
         method: "DELETE",
       }),
   };

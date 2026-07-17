@@ -2,7 +2,7 @@
   "name": "envault-vscode",
   "displayName": "Envault",
   "description": "Secure environment management from VS Code.",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "publisher": "envault",
   "license": "UNLICENSED",
   "repository": {
@@ -20,6 +20,7 @@
     "environment",
     "secrets",
     "security",
+    "aamsdn",
     "envault"
   ],
   "engines": {
@@ -29,29 +30,151 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:envault.signIn",
-    "onCommand:envault.signOut",
-    "onCommand:envault.status",
-    "onCommand:envault.selectEnvironment"
+    "onView:envault.explorer"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "envault.signIn",
-        "title": "Envault: Sign in"
+        "title": "Sign in",
+        "category": "Envault"
       },
       {
         "command": "envault.signOut",
-        "title": "Envault: Sign out"
+        "title": "Sign out",
+        "category": "Envault"
       },
       {
         "command": "envault.status",
-        "title": "Envault: Show connection status"
+        "title": "Show connection status",
+        "category": "Envault"
       },
       {
         "command": "envault.selectEnvironment",
-        "title": "Envault: Select environment"
+        "title": "Select environment",
+        "category": "Envault"
+      },
+      {
+        "command": "envault.unlock",
+        "title": "Unlock vault",
+        "category": "Envault",
+        "icon": "$(unlock)"
+      },
+      {
+        "command": "envault.lock",
+        "title": "Lock vault",
+        "category": "Envault",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "envault.pull",
+        "title": "Pull environment → .env",
+        "category": "Envault",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "envault.push",
+        "title": "Push .env → environment",
+        "category": "Envault",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "envault.quickActions",
+        "title": "Quick actions",
+        "category": "Envault"
+      },
+      {
+        "command": "envault.refresh",
+        "title": "Refresh",
+        "category": "Envault",
+        "icon": "$(refresh)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "envault",
+          "title": "Envault",
+          "icon": "images/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "envault": [
+        {
+          "id": "envault.explorer",
+          "name": "Environments"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "envault.explorer",
+        "contents": "Connect this device to Envault to browse your projects and environments.\n[Sign in to Envault](command:envault.signIn)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "envault.refresh",
+          "when": "view == envault.explorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "envault.pull",
+          "when": "view == envault.explorer && viewItem == envaultEnvironment",
+          "group": "inline@1"
+        },
+        {
+          "command": "envault.push",
+          "when": "view == envault.explorer && viewItem == envaultEnvironment",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "walkthroughs": [
+      {
+        "id": "envault.getStarted",
+        "title": "Get started with Envault",
+        "description": "Connect VS Code to your encrypted Envault environments.",
+        "steps": [
+          {
+            "id": "signIn",
+            "title": "Sign in",
+            "description": "Approve this device in your browser — no password is typed into VS Code.\n[Sign in](command:envault.signIn)",
+            "media": {
+              "markdown": "walkthrough/sign-in.md"
+            },
+            "completionEvents": [
+              "onCommand:envault.signIn"
+            ]
+          },
+          {
+            "id": "select",
+            "title": "Select an environment",
+            "description": "Bind a workspace folder to a project environment.\n[Select environment](command:envault.selectEnvironment)",
+            "media": {
+              "markdown": "walkthrough/select.md"
+            },
+            "completionEvents": [
+              "onCommand:envault.selectEnvironment"
+            ]
+          },
+          {
+            "id": "pullPush",
+            "title": "Pull and push",
+            "description": "Fetch secrets into .env and publish local changes back.\n[Pull environment](command:envault.pull)",
+            "media": {
+              "markdown": "walkthrough/pull-push.md"
+            },
+            "completionEvents": [
+              "onCommand:envault.pull"
+            ]
+          }
+        ]
       }
     ],
     "configuration": {
@@ -61,6 +184,13 @@
           "type": "string",
           "default": "https://env.aamsdn.space",
           "description": "Envault server URL."
+        },
+        "envault.autoLockMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 1440,
+          "description": "Minutes of inactivity before the vault locks in VS Code. Set to 0 to follow the vault's own auto-lock setting."
         }
       }
     }
@@ -71,12 +201,16 @@
     "package:vsix": "vsce package --pre-release --no-dependencies",
     "publish:pre": "vsce publish --pre-release --no-dependencies",
     "publish": "vsce publish --no-dependencies",
+    "release": "./scripts/release.sh",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@envault/api-client": "workspace:*"
+    "@envault/api-client": "workspace:*",
+    "@envault/api-contract": "workspace:*",
+    "@envault/crypto": "workspace:*",
+    "@envault/dotenv": "workspace:*"
   },
   "devDependencies": {
     "@types/vscode": "^1.100.0",
