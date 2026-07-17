@@ -28,17 +28,19 @@ class MemoryRedis implements EnvaultRedis {
   }
 
   public eval(_script: string, keys: string[], args: string[]) {
-    if (keys.length === 2) {
+    if (keys.length === 3) {
       if (this.values.has(keys[0]!) || this.values.has(keys[1]!))
         return Promise.resolve(0);
       this.values.set(keys[0]!, args[0]!);
       this.values.set(keys[1]!, JSON.parse(args[1]!) as unknown);
+      this.values.set(keys[2]!, JSON.parse(args[2]!) as unknown);
       return Promise.resolve(1);
     }
 
     const current = this.values.get(keys[0]!);
     if (JSON.stringify(current) !== args[0]) return Promise.resolve(0);
     this.values.set(keys[0]!, JSON.parse(args[1]!) as unknown);
+    this.values.set(keys[1]!, JSON.parse(args[2]!) as unknown);
     return Promise.resolve(1);
   }
 }
@@ -86,10 +88,34 @@ async function setup() {
     name: "Development",
     kind: "development",
   });
-  return { ownerId, repository, environment: environment! };
+  return { redis, ownerId, repository, environment: environment! };
 }
 
 describe("Redis synchronization safeguards", () => {
+  it("maintains a non-sensitive workspace overview", async () => {
+    const { redis, ownerId, repository, environment } = await setup();
+    await repository.createVariable(ownerId, environment.id, {
+      id: "10000000-0000-4000-8000-000000000000",
+      projectId: environment.projectId,
+      key: "API_URL",
+      encryptedValue: "ciphertext",
+      encryptionIv: "initialization-vector",
+      encryptionVersion: 1,
+      visibility: "secret",
+      tags: [],
+      description: null,
+      expectedVersion: 0,
+    });
+
+    await expect(
+      new RedisProjectRepository(redis).overview(ownerId),
+    ).resolves.toMatchObject({
+      projectCount: 1,
+      environmentCount: 1,
+      variableCount: 1,
+      projects: [{ environments: [{ variableCount: 1 }] }],
+    });
+  });
   it("rejects a stale expected environment version", async () => {
     const { ownerId, repository, environment } = await setup();
     const created = await repository.createVariable(ownerId, environment.id, {

@@ -1702,10 +1702,19 @@ serve its first external client.
 - [x] Use the shared API client and `/api/v1`; never connect directly to Redis
       or Firebase.
 - [x] Select projects and environments.
+- [x] Package and publish the initial Marketplace pre-release.
 - [ ] Pull remote environments into local dotenv files.
 - [ ] Push updates with expected-version and idempotency protection.
 - [ ] Present refresh, overwrite and merge choices for HTTP 409 conflicts.
-- [ ] Document extension security, session scopes and revocation.
+- [x] Document extension security, session scopes and revocation.
+
+### Dashboard reconciliation
+
+- [x] Replace hard-coded workspace counters with an atomically maintained,
+      non-sensitive Redis overview.
+- [x] Add a project-to-environment dashboard navigator with direct variable
+      workspace links.
+- [x] Show the actual authorized external-device count.
 
 ## Phase 9 — Comparison and history
 

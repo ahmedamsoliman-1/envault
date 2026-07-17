@@ -37,10 +37,27 @@ interface VaultState {
   operations: Record<string, Operation>;
 }
 
+export interface WorkspaceOverviewEnvironment extends EnvironmentDto {
+  variableCount: number;
+}
+
+export interface WorkspaceOverviewProject extends ProjectDto {
+  environments: WorkspaceOverviewEnvironment[];
+}
+
+export interface WorkspaceOverview {
+  projectCount: number;
+  environmentCount: number;
+  variableCount: number;
+  projects: WorkspaceOverviewProject[];
+}
+
 const userVaultKey = (ownerId: string) =>
   envaultRedisKey("user", ownerId, "vault");
 const stateKey = (vaultId: string) =>
   envaultRedisKey("vault", vaultId, "state");
+const overviewKey = (vaultId: string) =>
+  envaultRedisKey("vault", vaultId, "overview");
 const now = () => new Date().toISOString();
 const fingerprint = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -66,10 +83,11 @@ async function mutate<T>(
     const before = JSON.stringify(current);
     const result = change(current);
     const after = JSON.stringify(current);
+    const overview = JSON.stringify(workspaceOverview(current));
     const committed = await redis.eval(
-      "if redis.call('GET', KEYS[1]) == ARGV[1] then redis.call('SET', KEYS[1], ARGV[2]); return 1 else return 0 end",
-      [key],
-      [before, after],
+      "if redis.call('GET', KEYS[1]) == ARGV[1] then redis.call('SET', KEYS[1], ARGV[2]); redis.call('SET', KEYS[2], ARGV[3]); return 1 else return 0 end",
+      [key, overviewKey(vaultId)],
+      [before, after, overview],
     );
     if (committed === 1) return result;
   }
@@ -90,6 +108,44 @@ function variableList(state: VaultState, environmentId: string) {
   return Object.values(state.variables).filter(
     (item) => item.environmentId === environmentId,
   );
+}
+
+function workspaceOverview(state: VaultState): WorkspaceOverview {
+  const projects = projectList(state);
+  const projectIds = new Set(projects.map(({ id }) => id));
+  const environments = Object.values(state.environments)
+    .filter(
+      (environment) =>
+        environment.archivedAt === null &&
+        projectIds.has(environment.projectId),
+    )
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const environmentIds = new Set(environments.map(({ id }) => id));
+  const variableCounts = new Map<string, number>();
+  let variableCount = 0;
+  for (const variable of Object.values(state.variables)) {
+    if (!environmentIds.has(variable.environmentId)) continue;
+    variableCount += 1;
+    variableCounts.set(
+      variable.environmentId,
+      (variableCounts.get(variable.environmentId) ?? 0) + 1,
+    );
+  }
+
+  return {
+    projectCount: projects.length,
+    environmentCount: environments.length,
+    variableCount,
+    projects: projects.map((project) => ({
+      ...project,
+      environments: environments
+        .filter(({ projectId }) => projectId === project.id)
+        .map((environment) => ({
+          ...environment,
+          variableCount: variableCounts.get(environment.id) ?? 0,
+        })),
+    })),
+  };
 }
 
 export class RedisVaultRepository {
@@ -114,9 +170,17 @@ export class RedisVaultRepository {
       operations: {},
     };
     const result = await this.redis.eval(
-      "if redis.call('EXISTS', KEYS[1]) == 1 or redis.call('EXISTS', KEYS[2]) == 1 then return 0 end; redis.call('SET', KEYS[1], ARGV[1]); redis.call('SET', KEYS[2], ARGV[2]); return 1",
-      [userVaultKey(ownerId), stateKey(input.vaultId)],
-      [input.vaultId, JSON.stringify(state)],
+      "if redis.call('EXISTS', KEYS[1]) == 1 or redis.call('EXISTS', KEYS[2]) == 1 then return 0 end; redis.call('SET', KEYS[1], ARGV[1]); redis.call('SET', KEYS[2], ARGV[2]); redis.call('SET', KEYS[3], ARGV[3]); return 1",
+      [
+        userVaultKey(ownerId),
+        stateKey(input.vaultId),
+        overviewKey(input.vaultId),
+      ],
+      [
+        input.vaultId,
+        JSON.stringify(state),
+        JSON.stringify(workspaceOverview(state)),
+      ],
     );
     if (result !== 1) throw new Error("VAULT_ALREADY_EXISTS");
     return vault;
@@ -125,6 +189,31 @@ export class RedisVaultRepository {
 
 export class RedisProjectRepository {
   public constructor(private readonly redis: EnvaultRedis) {}
+  public async overview(ownerId: string): Promise<WorkspaceOverview> {
+    const vaultId = await this.redis.get<string>(userVaultKey(ownerId));
+    if (!vaultId)
+      return {
+        projectCount: 0,
+        environmentCount: 0,
+        variableCount: 0,
+        projects: [],
+      };
+    const cached = await this.redis.get<WorkspaceOverview>(
+      overviewKey(vaultId),
+    );
+    if (cached) return cached;
+    const result = await stateFor(this.redis, ownerId);
+    if (!result)
+      return {
+        projectCount: 0,
+        environmentCount: 0,
+        variableCount: 0,
+        projects: [],
+      };
+    const overview = workspaceOverview(result.state);
+    await this.redis.set(overviewKey(vaultId), overview);
+    return overview;
+  }
   public async list(ownerId: string) {
     const result = await stateFor(this.redis, ownerId);
     return result ? projectList(result.state) : [];
