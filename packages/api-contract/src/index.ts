@@ -27,6 +27,10 @@ export const apiErrorCodeSchema = z.enum([
   "DEVICE_AUTHORIZATION_ALREADY_USED",
   "DEVICE_SESSION_REVOKED",
   "FIRESTORE_UNAVAILABLE",
+  "CLIPBOARD_DISABLED",
+  "CLIPBOARD_ITEM_NOT_FOUND",
+  "CLIPBOARD_PAYLOAD_TOO_LARGE",
+  "CLIPBOARD_PINNED_LIMIT",
   "INTERNAL_ERROR",
 ]);
 
@@ -60,6 +64,9 @@ export const deviceScopeSchema = z.enum([
   "environments:read",
   "variables:read",
   "variables:write",
+  "clipboard:read",
+  "clipboard:write",
+  "clipboard:receive",
 ]);
 export const createDeviceAuthorizationRequestSchema = z.object({
   deviceName: z.string().trim().min(1).max(80),
@@ -327,6 +334,67 @@ export const bulkEnvironmentResponseSchema = z.object({
   replayed: z.boolean(),
 });
 
+export const clipboardContentTypeSchema = z.enum([
+  "text",
+  "url",
+  "code",
+  "json",
+  "command",
+]);
+export const clipboardSensitivitySchema = z.enum([
+  "normal",
+  "sensitive",
+  "secret",
+]);
+export const clipboardPersistenceModeSchema = z.enum([
+  "once",
+  "temporary",
+  "pinned",
+]);
+export const clipboardOriginClientSchema = z.enum([
+  "web",
+  "vscode",
+  "macos",
+  "windows",
+  "android",
+  "ios",
+]);
+
+/** Metadata-only view used in list responses — never carries the content. */
+export const clipboardItemDtoSchema = z.object({
+  id: z.string().uuid(),
+  contentType: clipboardContentTypeSchema,
+  safePreview: z.string().nullable(),
+  contentHash: z.string().min(1),
+  byteLength: z.number().int().nonnegative(),
+  sensitivity: clipboardSensitivitySchema,
+  persistenceMode: clipboardPersistenceModeSchema,
+  originClient: clipboardOriginClientSchema,
+  language: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime().nullable(),
+  pinnedAt: z.iso.datetime().nullable(),
+  consumedAt: z.iso.datetime().nullable(),
+});
+
+/** Detail view that additionally carries the plaintext content for copying. */
+export const clipboardItemContentDtoSchema = clipboardItemDtoSchema.extend({
+  content: z.string(),
+});
+
+export const createClipboardItemRequestSchema = z.object({
+  content: z.string().min(1).max(1_048_576),
+  contentType: clipboardContentTypeSchema.optional(),
+  persistenceMode: clipboardPersistenceModeSchema.default("temporary"),
+  originClient: clipboardOriginClientSchema.default("web"),
+  language: z.string().trim().min(1).max(50).nullable().default(null),
+  sensitivity: clipboardSensitivitySchema.optional(),
+});
+
+export const clipboardListSchema = z.object({
+  items: z.array(clipboardItemDtoSchema),
+});
+
 export function createSuccessResponse<T>(data: T, requestId: string) {
   return { data, meta: { requestId } };
 }
@@ -386,3 +454,17 @@ export type BulkEnvironmentRequest = z.infer<
 export type BulkEnvironmentResponse = z.infer<
   typeof bulkEnvironmentResponseSchema
 >;
+export type ClipboardContentType = z.infer<typeof clipboardContentTypeSchema>;
+export type ClipboardSensitivity = z.infer<typeof clipboardSensitivitySchema>;
+export type ClipboardPersistenceMode = z.infer<
+  typeof clipboardPersistenceModeSchema
+>;
+export type ClipboardOriginClient = z.infer<typeof clipboardOriginClientSchema>;
+export type ClipboardItemDto = z.infer<typeof clipboardItemDtoSchema>;
+export type ClipboardItemContentDto = z.infer<
+  typeof clipboardItemContentDtoSchema
+>;
+export type CreateClipboardItemRequest = z.input<
+  typeof createClipboardItemRequestSchema
+>;
+export type ClipboardList = z.infer<typeof clipboardListSchema>;

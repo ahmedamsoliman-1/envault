@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ClipboardList,
   FolderKanban,
   LayoutDashboard,
   Menu,
@@ -16,10 +17,14 @@ import { useEffect, useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { KeepLogo } from "@/components/brand/keep-logo";
 import { VaultQuickControl } from "@/components/vault/vault-quick-control";
+import { isClipboardEnabled } from "@/lib/features";
 
 const links = [
   { href: "/app/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/app/projects", label: "Projects", icon: FolderKanban },
+  ...(isClipboardEnabled()
+    ? [{ href: "/app/clipboard", label: "Clipboard", icon: ClipboardList }]
+    : []),
   { href: "/app/profile", label: "Profile", icon: UserRound },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];

@@ -84,6 +84,9 @@ importers:
       '@keephq/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      '@keephq/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@keephq/dotenv':
         specifier: workspace:*
         version: link:../../packages/dotenv
@@ -228,6 +231,9 @@ importers:
       '@keephq/api-contract':
         specifier: workspace:*
         version: link:../api-contract
+      '@keephq/domain':
+        specifier: workspace:*
+        version: link:../domain
       redis:
         specifier: ^6.1.0
         version: 6.1.0(@opentelemetry/api@1.9.1)

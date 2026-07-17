@@ -44,6 +44,21 @@ export function getMfaConfiguration() {
   };
 }
 
+export function getClipboardConfiguration() {
+  ensureLocalEnvironmentLoaded();
+  const environment = parseServerEnvironment(process.env);
+  return {
+    enabled: process.env.NEXT_PUBLIC_KEEP_CLIPBOARD_ENABLED === "true",
+    defaultTtlSeconds: environment.KEEP_CLIPBOARD_DEFAULT_TTL_SECONDS,
+    oneTimeTtlSeconds: environment.KEEP_CLIPBOARD_ONE_TIME_TTL_SECONDS,
+    sensitiveTtlSeconds: environment.KEEP_CLIPBOARD_SENSITIVE_TTL_SECONDS,
+    maxHistoryItems: environment.KEEP_CLIPBOARD_MAX_HISTORY_ITEMS,
+    maxTextBytes: environment.KEEP_CLIPBOARD_MAX_TEXT_BYTES,
+    maxPinnedItems: environment.KEEP_CLIPBOARD_MAX_PINNED_ITEMS,
+    dedupeTtlSeconds: environment.KEEP_CLIPBOARD_DEDUPE_TTL_SECONDS,
+  };
+}
+
 export function getDeviceConfiguration() {
   ensureLocalEnvironmentLoaded();
   const environment = parseServerEnvironment(process.env);

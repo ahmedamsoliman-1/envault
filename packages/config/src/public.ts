@@ -17,6 +17,10 @@ const publicEnvironmentSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  NEXT_PUBLIC_KEEP_CLIPBOARD_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 export type PublicEnvironment = z.infer<typeof publicEnvironmentSchema>;

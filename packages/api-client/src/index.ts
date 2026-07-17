@@ -2,6 +2,10 @@ import type {
   ApiError,
   BulkEnvironmentRequest,
   BulkEnvironmentResponse,
+  ClipboardItemContentDto,
+  ClipboardItemDto,
+  ClipboardList,
+  CreateClipboardItemRequest,
   CreateVaultRequest,
   CreateProjectRequest,
   CreateEnvironmentRequest,
@@ -251,6 +255,37 @@ export class KeepClient {
       this.request<{ deleted: true }>("/api/v1/device/vault-key", {
         method: "DELETE",
       }),
+  };
+
+  public readonly clipboard = {
+    list: () => this.request<ClipboardList>("/api/v1/clipboard/items"),
+    create: (input: CreateClipboardItemRequest) =>
+      this.request<ClipboardItemDto>("/api/v1/clipboard/items", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    get: (itemId: string) =>
+      this.request<ClipboardItemContentDto>(
+        `/api/v1/clipboard/items/${itemId}`,
+      ),
+    delete: (itemId: string) =>
+      this.request<{ deleted: true }>(`/api/v1/clipboard/items/${itemId}`, {
+        method: "DELETE",
+      }),
+    pin: (itemId: string) =>
+      this.request<ClipboardItemDto>(`/api/v1/clipboard/items/${itemId}/pin`, {
+        method: "POST",
+      }),
+    unpin: (itemId: string) =>
+      this.request<ClipboardItemDto>(
+        `/api/v1/clipboard/items/${itemId}/unpin`,
+        { method: "POST" },
+      ),
+    consume: (itemId: string) =>
+      this.request<ClipboardItemContentDto>(
+        `/api/v1/clipboard/items/${itemId}/consume`,
+        { method: "POST" },
+      ),
   };
 
   public async request<T>(path: string, init: RequestInit = {}): Promise<T> {

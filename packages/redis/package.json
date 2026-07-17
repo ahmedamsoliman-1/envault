@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./repositories": "./src/repositories.ts"
+    "./repositories": "./src/repositories.ts",
+    "./clipboard-repository": "./src/clipboard-repository.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@keephq/api-contract": "workspace:*",
+    "@keephq/domain": "workspace:*",
     "redis": "^6.1.0"
   }
 }
