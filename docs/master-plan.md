@@ -72,37 +72,62 @@ device model.
 | VS Code command prefix        | `Envault: …`                                         | `Keep: …`                                   |
 | Typed client class            | `EnvaultClient`                                      | `KeepClient`                                |
 | Redis client type / helpers   | `EnvaultRedis`, `envaultRedisKey`, `getEnvaultRedis` | `KeepRedis`, `keepRedisKey`, `getKeepRedis` |
-| Redis key prefix              | `envault:v1`                                         | `keep:v1`                                   |
+| Redis key prefix (VALUE)      | `envault:v1`                                         | **`envault:v1` — retained** (see 0.6)       |
+| Crypto AAD labels (VALUE)     | `envault:…`, `envault:v1:vault-key:…`                | **retained** — bound to ciphertext (0.6)    |
 | Env-var prefix                | `ENVAULT_*`                                          | `KEEP_*`                                    |
-| Session cookie                | `envault_session`                                    | `keep_session`                              |
-| MFA-trust cookie              | `envault_mfa_trust`                                  | `keep_mfa_trust`                            |
+| Session cookie (VALUE)        | `envault_session`                                    | **`envault_session` — retained** (0.6)      |
+| MFA-trust cookie (VALUE)      | `envault_mfa_trust`                                  | **`envault_mfa_trust` — retained** (0.6)    |
 | App name env                  | `NEXT_PUBLIC_APP_NAME=Envault`                       | `NEXT_PUBLIC_APP_NAME=Keep`                 |
 | Device type union (clipboard) | `EnvaultDevice`                                      | `KeepDevice`                                |
 | Monorepo root dir             | `envault/`                                           | `keep/`                                     |
 
 ## 0.4 Migration checklist — Step 0 (one isolated commit, no behavior change)
 
-- [ ] Rename all `@envault/*` package `name` fields to `@keephq/*` and update
+- [x] Rename all `@envault/*` package `name` fields to `@keephq/*` and update
       every import specifier across `apps/*` and `packages/*`.
-- [ ] `packages/redis/src/index.ts`: `ENVAULT_REDIS_PREFIX = "envault:v1"` →
-      `"keep:v1"`; `envaultRedisKey` → `keepRedisKey`; `getEnvaultRedis` →
-      `getKeepRedis`; `EnvaultRedis` → `KeepRedis`.
-- [ ] Rename `ENVAULT_*` env vars to `KEEP_*` in code, `.env`, `.env.example`,
-      and config validation (`packages/config`).
-- [ ] Rename cookies `envault_session` → `keep_session`, `envault_mfa_trust`
-      → `keep_mfa_trust` (and any middleware/reads).
-- [ ] Rename the VS Code app dir/package `envault-vscode` → `keep-vscode`,
-      command titles `Envault: …` → `Keep: …`, and `activationEvents`
-      (`onView:envault.explorer` → `onView:keep.explorer`).
-- [ ] Replace user-facing "Envault" strings with "Keep" in the website and
+- [x] `packages/redis/src/index.ts`: rename symbols `envaultRedisKey` →
+      `keepRedisKey`, `getEnvaultRedis` → `getKeepRedis`, `EnvaultRedis` →
+      `KeepRedis`, `ENVAULT_REDIS_PREFIX` → `KEEP_REDIS_PREFIX`. **Keep the
+      VALUE `"envault:v1"`** (see 0.6 — bound to existing keys).
+- [x] Rename `ENVAULT_*` env-var _names_ to `KEEP_*`. **Do not change the
+      cookie VALUES** (`SESSION_COOKIE_NAME=envault_session`) — see 0.6.
+- [x] Cookie symbol references renamed; **VALUES retained** as
+      `envault_session` / `envault_mfa_trust` (0.6).
+- [x] Rename the VS Code app dir/package `envault-vscode` → `keep-vscode`,
+      command titles `Envault: …` → `Keep: …`, command ids `envault.*` →
+      `keep.*`, and `activationEvents`. **Exception:** SecretStorage/workspace
+      keys (`envault.deviceAccessToken`, `envault.deviceVaultSecret`,
+      `envault.binding:*`) keep their legacy VALUES so existing device pairings
+      survive (0.6).
+- [x] Replace user-facing "Envault" strings with "Keep" in the website and
       extension.
-- [ ] Run `pnpm check` (lint + typecheck + test + build) and confirm green.
+- [x] Run `pnpm check` (lint + typecheck + test + build) and confirm green.
 
-> **Redis-prefix caution:** changing `envault:v1` → `keep:v1` **orphans existing
-> keys** in any live Redis. Acceptable for local/dev (flush or ignore). For any
-> shared/persistent environment, either run a one-off key-migration or keep a
-> compatibility read-through for one release. Document whichever you choose in
-> `docs/redis-storage.md`.
+## 0.6 Data continuity — legacy internal namespaces are RETAINED (decision, 2026-07-18)
+
+Several _internal_ identifiers are bound to already-persisted data. Renaming
+their VALUES orphaned it (the first rebrand pass did exactly this and made the
+existing vault, projects, environments and sessions invisible/undecryptable).
+**Resolution: keep the new `KEEP_*` symbol _names_, but restore the legacy
+string _values_.** No data migration, no re-login. These strings are invisible
+to users; loud `// Do NOT change` comments guard them in code.
+
+| Identifier                      | File                                             | Retained value                                                                |
+| ------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Redis key prefix                | `packages/redis/src/index.ts`                    | `envault:v1`                                                                  |
+| Variable-payload AAD label      | `packages/crypto/src/protocol/payload.ts`        | `envault` (`envault:variable:v1:…`)                                           |
+| Wrapped-vault-key AAD label     | `packages/crypto/src/key-wrapping/vault-keys.ts` | `envault:v1:vault-key:…`                                                      |
+| Session cookie name             | `packages/config/src/server.ts`                  | `envault_session`                                                             |
+| MFA-trust cookie name           | `auth/session/route.ts`, `lib/firebase-admin.ts` | `envault_mfa_trust`                                                           |
+| VS Code SecretStorage / binding | `apps/vscode-extension/src/*`                    | `envault.deviceAccessToken`, `envault.deviceVaultSecret`, `envault.binding:*` |
+
+**Why the crypto labels are non-negotiable:** they are AES-256-GCM _associated
+data_ baked into every ciphertext. Changing them fails auth-tag verification, so
+existing variables cannot be decrypted and existing vaults cannot be unlocked.
+
+**Consequence for Keep Clipboard (Part II):** new clipboard keys live under the
+retained prefix — **`envault:v1:clipboard:*`**, not `keep:v1:clipboard:*`.
+Wherever Part II says `keep:v1`, read `envault:v1`.
 
 ## 0.5 Storage note (Firestore → Redis)
 
@@ -2168,9 +2193,10 @@ clipboard:auto-receive   # opt-in; NOT granted automatically on pairing
 ### 2. Redis — reuse the existing client and key convention
 
 Use `getKeepRedis()` and `keepRedisKey(...)` (`packages/redis`). All clipboard
-keys live under the existing `keep:v1` prefix as `keep:v1:clipboard:…`. Do not
-introduce a new client or prefix. Redis is primary storage (Part 0.5); the spec
-below already assumes Redis — this is aligned.
+keys live under the **retained** prefix as **`envault:v1:clipboard:…`** (see
+0.6 — the prefix value stays `envault:v1` for data continuity). Do not introduce
+a new client or prefix. Redis is primary storage (Part 0.5); the spec below
+already assumes Redis — this is aligned.
 
 ### 3. Encryption — reuse `@keephq/crypto`
 
