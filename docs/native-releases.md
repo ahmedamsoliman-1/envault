@@ -54,12 +54,12 @@ never creates a release from an arbitrary branch or untagged commit.
 
 The protected `native-release` environment must contain these secrets:
 
-| Name                        | Purpose                                  |
-| --------------------------- | ---------------------------------------- |
-| `ANDROID_KEYSTORE_BASE64`   | Base64-encoded Android release keystore  |
-| `ANDROID_KEYSTORE_PASSWORD` | Keystore password                        |
-| `ANDROID_KEY_ALIAS`         | Release key alias                        |
-| `ANDROID_KEY_PASSWORD`      | Private-key password                     |
+| Name                        | Purpose                                 |
+| --------------------------- | --------------------------------------- |
+| `ANDROID_KEYSTORE_BASE64`   | Base64-encoded Android release keystore |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password                       |
+| `ANDROID_KEY_ALIAS`         | Release key alias                       |
+| `ANDROID_KEY_PASSWORD`      | Private-key password                    |
 
 Run **Android signed test APK** from the repository's Actions page, approve the
 `native-release` environment if prompted, then download the artifact from the
