@@ -24,6 +24,7 @@ const platform: Platform = /Android/iu.test(navigator.userAgent)
     ? "windows"
     : "macos";
 const isMobile = platform === "android";
+document.documentElement.classList.toggle("mobile", isMobile);
 const platformLabel =
   platform === "macos"
     ? "Mac"

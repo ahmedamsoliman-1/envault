@@ -221,3 +221,86 @@ button.link {
     padding: 20px;
   }
 }
+
+/* Android uses a full-screen window instead of the compact desktop popover. */
+.mobile {
+  font-size: 15px;
+}
+
+.mobile body {
+  min-height: 100dvh;
+}
+
+.mobile .app {
+  width: min(100%, 720px);
+  height: auto;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: clamp(24px, 6vw, 48px) clamp(20px, 7vw, 56px);
+  gap: 24px;
+}
+
+.mobile .topbar {
+  min-height: 32px;
+}
+
+.mobile .brand {
+  font-size: 18px;
+}
+
+.mobile .view {
+  flex: initial;
+  gap: 20px;
+}
+
+.mobile #view-connect {
+  justify-content: center;
+  min-height: calc(100dvh - 128px);
+  text-align: center;
+}
+
+.mobile #view-connect .muted,
+.mobile #view-connect .hint {
+  max-width: 480px;
+  margin-inline: auto;
+}
+
+.mobile button.primary {
+  min-height: 48px;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 15px;
+}
+
+.mobile .statusline,
+.mobile .section-heading {
+  min-height: 32px;
+}
+
+.mobile .compose {
+  gap: 12px;
+}
+
+.mobile .compose textarea {
+  min-height: 112px;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.mobile .section-title {
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.mobile .recent {
+  flex: initial;
+  overflow-y: visible;
+  gap: 10px;
+}
+
+.mobile .recent li {
+  min-height: 56px;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 11px 13px;
+}
