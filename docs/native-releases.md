@@ -10,11 +10,12 @@ publish from an existing `keep-v*` Git tag.
 - `Keep-Clipboard-macOS-arm64.dmg`
 - `Keep-Clipboard-Windows-x64-Setup.exe`
 - `Keep-Clipboard-Windows-x64.msi`
+- `Keep-Clipboard-Android-universal.apk`
 - `SHA256SUMS.txt`
 
-Android APK/AAB assets will join this list only after the native Android shell,
-secure storage, biometrics, Sharesheet and notification work passes its release
-gate. The download page intentionally labels Android as in progress until then.
+The Android release job remains blocked until the native Android shell, secure
+storage, biometrics, Sharesheet and notification work passes its release gate.
+Until then, keep `KEEP_ANDROID_RELEASE_APPROVED` unset or set to `false`.
 
 Before that public gate, `.github/workflows/android-test.yml` can be run
 manually from `main`. It creates a signed universal APK as a private GitHub
@@ -31,10 +32,10 @@ approval and restrict deployment to protected `keep-v*` tags. Configure:
 | Environment variable | `KEEP_WINDOWS_RELEASE_APPROVED` | Must equal `true` after Credential Manager integration and Windows device testing pass |
 | Environment secret   | `WINDOWS_CERTIFICATE_BASE64`    | Base64-encoded Authenticode PFX                                                        |
 | Environment secret   | `WINDOWS_CERTIFICATE_PASSWORD`  | PFX password                                                                           |
+| Environment variable | `KEEP_ANDROID_RELEASE_APPROVED` | Must equal `true` only after Android feature and device testing pass                   |
 
-Do not set the approval variable early. The workflow treats it as a security
-gate and refuses to publish the Windows installer without it or the signing
-certificate.
+Do not set either approval variable early. The workflow treats them as security
+gates and refuses to publish the associated installer before its release gate.
 
 ## Publishing
 
@@ -45,7 +46,7 @@ certificate.
 3. Create and push a protected tag such as `keep-v0.2.0`.
 4. Approve the `native-release` environment deployment.
 5. Verify the release checksums, provenance and installers on clean devices.
-6. Confirm `/download` resolves the latest Windows installer.
+6. Confirm `/download` resolves the latest Windows and Android installers.
 
 The workflow can also be started manually for an existing `keep-v*` tag. It
 never creates a release from an arbitrary branch or untagged commit.
@@ -68,5 +69,6 @@ SHA-256 checksum. Keep the same keystore permanently: Android only accepts an
 update when it is signed with the same key as the installed app.
 
 The current distribution plan is direct APK download, not Google Play. After
-the Android release gate passes, the same signing identity will be used for a
-tagged public APK named `Keep-Clipboard-Android-universal.apk`.
+the Android release gate passes, set `KEEP_ANDROID_RELEASE_APPROVED=true`. The
+tagged workflow publishes `Keep-Clipboard-Android-universal.apk`, and the
+website discovers that exact asset from the latest GitHub Release automatically.

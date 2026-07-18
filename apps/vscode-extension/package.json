@@ -7,13 +7,13 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ahmedamsoliman-1/envault.git",
+    "url": "https://github.com/ahmedamsoliman-1/keep.git",
     "directory": "apps/vscode-extension"
   },
-  "homepage": "https://github.com/ahmedamsoliman-1/envault#readme",
+  "homepage": "https://github.com/ahmedamsoliman-1/keep#readme",
   "icon": "images/icon.png",
   "bugs": {
-    "url": "https://github.com/ahmedamsoliman-1/envault/issues"
+    "url": "https://github.com/ahmedamsoliman-1/keep/issues"
   },
   "keywords": [
     "dotenv",

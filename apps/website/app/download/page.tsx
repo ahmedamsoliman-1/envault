@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 };
 
 const MAC_DMG = "/downloads/Keep-Clipboard-0.1.0-arm64.dmg";
-const RELEASES_URL = "https://github.com/ahmedamsoliman-1/envault/releases";
+const RELEASES_URL = "https://github.com/ahmedamsoliman-1/keep/releases";
 const RELEASE_API =
-  "https://api.github.com/repos/ahmedamsoliman-1/envault/releases/latest";
+  "https://api.github.com/repos/ahmedamsoliman-1/keep/releases/latest";
 const VSCODE_URL =
   "https://marketplace.visualstudio.com/items?itemName=keep.keep-vscode";
 

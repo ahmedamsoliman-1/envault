@@ -109,8 +109,93 @@ jobs:
           path: ${{ matrix.paths }}
           if-no-files-found: error
 
+  android:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: native-release
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+          run_install: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - name: Enforce Android release gate
+        shell: bash
+        env:
+          RELEASE_APPROVED: ${{ vars.KEEP_ANDROID_RELEASE_APPROVED }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ "$RELEASE_APPROVED" != "true" ]; then
+            echo "Set KEEP_ANDROID_RELEASE_APPROVED=true only after the Android release gate passes." >&2
+            exit 1
+          fi
+          for value in \
+            "$ANDROID_KEYSTORE_BASE64" \
+            "$ANDROID_KEYSTORE_PASSWORD" \
+            "$ANDROID_KEY_ALIAS" \
+            "$ANDROID_KEY_PASSWORD"; do
+            if [ -z "$value" ]; then
+              echo "All Android signing secrets are required." >&2
+              exit 1
+            fi
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/keep-android-release.jks"
+          chmod 600 "$RUNNER_TEMP/keep-android-release.jks"
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "platforms;android-36" \
+            "build-tools;35.0.0" \
+            "ndk;27.2.12479018"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter keep-desktop typecheck
+      - name: Build signed universal APK
+        working-directory: apps/keep-desktop
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/keep-android-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: pnpm tauri android build --apk --ci
+      - name: Verify and normalize APK
+        shell: bash
+        run: |
+          source_apk="apps/keep-desktop/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
+          test -f "$source_apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$source_apk"
+          mkdir -p android-release
+          cp "$source_apk" android-release/Keep-Clipboard-Android-universal.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keep-clipboard-android
+          path: android-release/Keep-Clipboard-Android-universal.apk
+          if-no-files-found: error
+
   publish:
-    needs: desktop
+    needs: [desktop, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -128,10 +213,12 @@ jobs:
           mac_dmg=$(find artifacts/keep-clipboard-macos-arm64 -type f -name '*.dmg' -print -quit)
           win_exe=$(find artifacts/keep-clipboard-windows-x64 -type f -name '*.exe' -print -quit)
           win_msi=$(find artifacts/keep-clipboard-windows-x64 -type f -name '*.msi' -print -quit)
-          test -n "$mac_dmg" && test -n "$win_exe" && test -n "$win_msi"
+          android_apk=$(find artifacts/keep-clipboard-android -type f -name '*.apk' -print -quit)
+          test -n "$mac_dmg" && test -n "$win_exe" && test -n "$win_msi" && test -n "$android_apk"
           cp "$mac_dmg" release/Keep-Clipboard-macOS-arm64.dmg
           cp "$win_exe" release/Keep-Clipboard-Windows-x64-Setup.exe
           cp "$win_msi" release/Keep-Clipboard-Windows-x64.msi
+          cp "$android_apk" release/Keep-Clipboard-Android-universal.apk
           cd release
           sha256sum * > SHA256SUMS.txt
       - uses: actions/attest-build-provenance@v3
