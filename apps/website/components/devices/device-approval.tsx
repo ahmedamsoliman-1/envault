@@ -53,7 +53,7 @@ export function DeviceApproval({
       </h1>
       <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
         {approved
-          ? "Return to VS Code. Keep will finish creating its revocable device session."
+          ? `Return to ${clientName}. Keep will finish creating its revocable device session.`
           : `${clientName} is requesting access from ${deviceName}.`}
       </p>
       {!approved ? (
