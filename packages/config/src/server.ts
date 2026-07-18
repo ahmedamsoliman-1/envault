@@ -58,6 +58,11 @@ const serverEnvironmentSchema = z.object({
     .int()
     .nonnegative()
     .default(30),
+  KEEP_CLIPBOARD_STREAM_MAXLEN: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1_000),
 });
 
 export type ServerEnvironment = z.infer<typeof serverEnvironmentSchema>;

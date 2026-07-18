@@ -80,6 +80,18 @@
         "icon": "$(cloud-upload)"
       },
       {
+        "command": "keep.clipboard.send",
+        "title": "Send selection to Clipboard",
+        "category": "Keep",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "keep.clipboard.history",
+        "title": "Open Clipboard history",
+        "category": "Keep",
+        "icon": "$(history)"
+      },
+      {
         "command": "keep.quickActions",
         "title": "Quick actions",
         "category": "Keep"
@@ -117,9 +129,21 @@
     "menus": {
       "view/title": [
         {
+          "command": "keep.clipboard.history",
+          "when": "view == keep.explorer",
+          "group": "navigation@1"
+        },
+        {
           "command": "keep.refresh",
           "when": "view == keep.explorer",
-          "group": "navigation"
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "keep.clipboard.send",
+          "when": "editorHasSelection",
+          "group": "9_cutcopypaste@10"
         }
       ],
       "view/item/context": [

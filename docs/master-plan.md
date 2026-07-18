@@ -4043,18 +4043,37 @@ sequence.
   workspace + nav; `NEXT_PUBLIC_KEEP_CLIPBOARD_ENABLED` + `KEEP_CLIPBOARD_*`.
   Unit-tested; `pnpm check` green; API smoke-tested. Real-time (Streams/SSE) and
   client-side encryption remain deferred (Phases 14/18).
-- **Phase 13 — Keep Clipboard in VS Code** (= Part II §25 Phase 2). Add
-  `clipboard:*` scopes to existing device authorization; add clipboard commands
-  to `apps/keep-vscode`; secure reuse of `SecretStorage`; loop/dedupe
-  prevention. Manual receive; request/response only.
+- **[x] Phase 13 — Keep Clipboard in VS Code** (= Part II §25 Phase 2).
+  `clipboard:read`/`clipboard:write` added to the device-authorization sign-in
+  scopes (existing devices must re-sign-in to gain them); `apps/vscode-extension`
+  gains `keep.clipboard.send` (selection or OS clipboard → item, with a
+  Temporary/Once/Pin persistence pick, tagged `origin: vscode`) and
+  `keep.clipboard.history` (Quick Pick over `client.clipboard.list()` with
+  per-item Insert / Pin-Unpin / Delete buttons and copy-on-accept; one-time
+  items are `consume`d on read). Reachable from palette, the Keep view title bar,
+  editor right-click, and Quick Actions. Reuses the existing `SecretStorage`
+  device token; `KeepApiError` 404/401/403 mapped to actionable messages.
+  Manual receive, request/response only (no in-extension SSE yet). Typecheck +
+  lint + esbuild + `pnpm check` green.
 
 Then **return to Keep Secrets** (Stage E → F → Phase 9 → Phase 10).
 
 ## Deferred Keep Clipboard phases (after the return, or as later divergences)
 
-- **Phase 14 — Real-time sync & device management** (Part II §25 Phase 3):
-  Redis Streams event log, SSE (or WebSocket) transport, cursor resume,
-  presence, delivery ack.
+- **[x] Phase 14a — Real-time web sync** (part of Part II §25 Phase 3): durable
+  per-user Redis Stream (`envault:v1:clipboard:user:*:stream`, `MAXLEN`-trimmed)
+  appended on every mutation via a best-effort `emitClipboardEvent`;
+  `ClipboardEventLog` in `@keephq/redis` (append / `latestCursor` / exclusive
+  `readSince`); `GET /api/v1/clipboard/events` bounded SSE (~25s, `maxDuration`
+  30) tailing the stream; the web workspace subscribes with `EventSource` and
+  applies idempotent deltas (upsert-by-id, once-consume removal) — cursor resume
+  is automatic via `Last-Event-ID`. `KEEP_CLIPBOARD_STREAM_MAXLEN` config; event
+  payloads carry sanitized metadata only. Unit-tested; `pnpm check` green.
+  Transport is a 1s server-side stream poll (non-blocking, serverless-safe), not
+  blocking `XREAD` — a later optimization if sub-second latency is needed.
+- **Phase 14b — Device management** (rest of Part II §25 Phase 3): presence,
+  device dashboard (rename/revoke), delivery acknowledgement, `device.revoked`
+  events. Deferred until a second device type emits (Phases 15–17).
 - **Phase 15 — macOS & Windows companion** (Tauri preferred) — Part II §25 Ph 4.
 - **Phase 16 — Android / Samsung companion** (Sharesheet-first) — Ph 5.
 - **Phase 17 — iPhone / iPad companion** (Share Extension, App Intents) — Ph 6.

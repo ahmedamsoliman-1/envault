@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./repositories": "./src/repositories.ts",
-    "./clipboard-repository": "./src/clipboard-repository.ts"
+    "./clipboard-repository": "./src/clipboard-repository.ts",
+    "./clipboard-event-log": "./src/clipboard-event-log.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

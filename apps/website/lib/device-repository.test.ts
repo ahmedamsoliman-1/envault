@@ -31,6 +31,17 @@ class MemoryRedis implements KeepRedis {
     this.values.set(keys[0]!, JSON.parse(args[1]!) as unknown);
     return Promise.resolve(1);
   }
+
+  // Clipboard streams are unused by device tests.
+  public xadd() {
+    return Promise.resolve("0-0");
+  }
+  public xrange() {
+    return Promise.resolve([]);
+  }
+  public xrevrange() {
+    return Promise.resolve([]);
+  }
 }
 
 describe("DeviceRepository", () => {
