@@ -25,6 +25,8 @@ export async function signIn(context: vscode.ExtensionContext): Promise<void> {
         "environments:read",
         "variables:read",
         "variables:write",
+        "clipboard:read",
+        "clipboard:write",
       ],
     });
     await vscode.env.openExternal(

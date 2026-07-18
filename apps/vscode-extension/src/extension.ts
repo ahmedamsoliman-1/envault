@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 
 import { showStatus, signIn, signOut } from "./auth";
 import { getAccessToken } from "./client";
+import { sendToClipboard, showClipboardHistory } from "./clipboard";
 import { stateChanged } from "./events";
 import { pullEnvironment } from "./pull";
 import { pushEnvironment } from "./push";
@@ -47,6 +48,14 @@ async function quickActions(
       command: "keep.pull",
     },
     { label: "$(cloud-upload) Push .env → environment", command: "keep.push" },
+    {
+      label: "$(clippy) Send selection to Keep Clipboard",
+      command: "keep.clipboard.send",
+    },
+    {
+      label: "$(history) Open Keep Clipboard history",
+      command: "keep.clipboard.history",
+    },
     {
       label: "$(list-selection) Select environment",
       command: "keep.selectEnvironment",
@@ -106,6 +115,12 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("keep.push", async (arg?: unknown) =>
       pushEnvironment(context, session, await targetFromArg(context, arg)),
+    ),
+    vscode.commands.registerCommand("keep.clipboard.send", () =>
+      sendToClipboard(context),
+    ),
+    vscode.commands.registerCommand("keep.clipboard.history", () =>
+      showClipboardHistory(context),
     ),
     vscode.commands.registerCommand("keep.quickActions", () =>
       quickActions(context, session),
