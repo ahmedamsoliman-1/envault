@@ -2,7 +2,7 @@ import { RedisClipboardRepository } from "@keephq/redis/clipboard-repository";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { toClipboardItemContentDto } from "@/lib/clipboard";
+import { emitClipboardEvent, toClipboardItemContentDto } from "@/lib/clipboard";
 import {
   getAdminFirestore,
   getClipboardConfiguration,
@@ -85,6 +85,7 @@ export async function DELETE(
       getAdminFirestore(),
     ).remove(access.ownerId, itemId);
     if (!removed) return notFoundResponse(requestId);
+    await emitClipboardEvent(access.ownerId, { type: "deleted", itemId });
     return successResponse({ deleted: true }, requestId);
   } catch {
     return errorResponse(

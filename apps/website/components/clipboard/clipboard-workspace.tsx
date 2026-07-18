@@ -73,6 +73,44 @@ function relativeTime(iso: string): string {
   return "just now";
 }
 
+/** Same ordering the list API applies: pinned first, then newest first. */
+function sortItems(items: ClipboardItemDto[]): ClipboardItemDto[] {
+  return [...items].sort((a, b) => {
+    if ((a.pinnedAt === null) !== (b.pinnedAt === null))
+      return a.pinnedAt === null ? 1 : -1;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+interface ClipboardSyncMessage {
+  eventId: string;
+  type: "created" | "updated" | "deleted" | "consumed" | "pinned" | "unpinned";
+  itemId: string;
+  item: ClipboardItemDto | null;
+  createdAt: string;
+}
+
+/**
+ * Reconcile a real-time sync event into local state. Upserts are keyed by id so
+ * an event echoing the caller's own mutation is idempotent (no duplicates).
+ */
+function applyClipboardEvent(
+  items: ClipboardItemDto[],
+  event: ClipboardSyncMessage,
+): ClipboardItemDto[] {
+  if (event.type === "deleted") {
+    return items.filter((item) => item.id !== event.itemId);
+  }
+  // A consumed one-time item is no longer visible; drop it.
+  if (event.type === "consumed" && event.item?.persistenceMode === "once") {
+    return items.filter((item) => item.id !== event.itemId);
+  }
+  if (!event.item) return items;
+  const next = event.item;
+  const withoutItem = items.filter((item) => item.id !== next.id);
+  return sortItems([next, ...withoutItem]);
+}
+
 function ItemIcon({ item }: { item: ClipboardItemDto }) {
   if (item.sensitivity !== "normal")
     return <ShieldAlert className="size-4 text-amber-500" />;
@@ -102,6 +140,22 @@ export function ClipboardWorkspace() {
         toast.error(getUserFacingError(error, "Clipboard could not load.")),
       )
       .finally(() => setLoading(false));
+  }, []);
+
+  // Live updates: tail the server event stream so items added, pinned or
+  // removed elsewhere (other tabs/devices) appear without a manual refresh.
+  // EventSource reconnects on its own and resumes via Last-Event-ID.
+  useEffect(() => {
+    const source = new EventSource("/api/v1/clipboard/events");
+    source.onmessage = (message: MessageEvent<string>) => {
+      try {
+        const event = JSON.parse(message.data) as ClipboardSyncMessage;
+        setItems((current) => applyClipboardEvent(current, event));
+      } catch {
+        // Ignore malformed frames; the next event or reconnect reconciles.
+      }
+    };
+    return () => source.close();
   }, []);
 
   const filtered = useMemo(() => {

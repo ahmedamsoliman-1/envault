@@ -43,6 +43,17 @@ class MemoryRedis implements KeepRedis {
     this.values.set(keys[1]!, JSON.parse(args[2]!) as unknown);
     return Promise.resolve(1);
   }
+
+  // Streams are exercised by clipboard-event-log.test.ts; unused here.
+  public xadd() {
+    return Promise.resolve("0-0");
+  }
+  public xrange() {
+    return Promise.resolve([]);
+  }
+  public xrevrange() {
+    return Promise.resolve([]);
+  }
 }
 
 async function setup() {

@@ -56,6 +56,7 @@ export function getClipboardConfiguration() {
     maxTextBytes: environment.KEEP_CLIPBOARD_MAX_TEXT_BYTES,
     maxPinnedItems: environment.KEEP_CLIPBOARD_MAX_PINNED_ITEMS,
     dedupeTtlSeconds: environment.KEEP_CLIPBOARD_DEDUPE_TTL_SECONDS,
+    streamMaxLen: environment.KEEP_CLIPBOARD_STREAM_MAXLEN,
   };
 }
 

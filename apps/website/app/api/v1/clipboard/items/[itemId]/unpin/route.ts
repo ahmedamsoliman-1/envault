@@ -2,7 +2,11 @@ import { RedisClipboardRepository } from "@keephq/redis/clipboard-repository";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { clipboardRepositoryConfig, toClipboardItemDto } from "@/lib/clipboard";
+import {
+  clipboardRepositoryConfig,
+  emitClipboardEvent,
+  toClipboardItemDto,
+} from "@/lib/clipboard";
 import {
   getAdminFirestore,
   getClipboardConfiguration,
@@ -48,7 +52,13 @@ export async function POST(
         requestId,
         404,
       );
-    return successResponse(toClipboardItemDto(result.item), requestId);
+    const dto = toClipboardItemDto(result.item);
+    await emitClipboardEvent(access.ownerId, {
+      type: "unpinned",
+      itemId: dto.id,
+      item: dto,
+    });
+    return successResponse(dto, requestId);
   } catch {
     return errorResponse(
       { code: "FIRESTORE_UNAVAILABLE", message: "Clipboard is unavailable." },

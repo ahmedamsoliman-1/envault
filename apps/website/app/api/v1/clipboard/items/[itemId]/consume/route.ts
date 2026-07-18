@@ -2,7 +2,11 @@ import { RedisClipboardRepository } from "@keephq/redis/clipboard-repository";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { toClipboardItemContentDto } from "@/lib/clipboard";
+import {
+  emitClipboardEvent,
+  toClipboardItemContentDto,
+  toClipboardItemDto,
+} from "@/lib/clipboard";
 import {
   getAdminFirestore,
   getClipboardConfiguration,
@@ -47,6 +51,11 @@ export async function POST(
         requestId,
         404,
       );
+    await emitClipboardEvent(access.ownerId, {
+      type: "consumed",
+      itemId: result.item.id,
+      item: toClipboardItemDto(result.item),
+    });
     // Returns content so a one-time item can be copied as it is consumed.
     return successResponse(toClipboardItemContentDto(result.item), requestId);
   } catch {

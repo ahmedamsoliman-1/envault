@@ -7,7 +7,11 @@ import {
   invalidRequestResponse,
   successResponse,
 } from "@/lib/api-response";
-import { clipboardRepositoryConfig, toClipboardItemDto } from "@/lib/clipboard";
+import {
+  clipboardRepositoryConfig,
+  emitClipboardEvent,
+  toClipboardItemDto,
+} from "@/lib/clipboard";
 import {
   getAdminFirestore,
   getClipboardConfiguration,
@@ -109,8 +113,16 @@ export async function POST(request: NextRequest) {
         409,
       );
     }
+    const dto = toClipboardItemDto(result.item);
+    if (result.kind === "created") {
+      await emitClipboardEvent(access.ownerId, {
+        type: "created",
+        itemId: dto.id,
+        item: dto,
+      });
+    }
     return successResponse(
-      toClipboardItemDto(result.item),
+      dto,
       requestId,
       result.kind === "created" ? 201 : 200,
     );
