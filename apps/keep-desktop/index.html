@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Keep Clipboard</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <span class="brand">Keep Clipboard</span>
+        <span id="status-dot" class="dot dot--off" title="disconnected"></span>
+      </header>
+
+      <!-- Disconnected view -->
+      <section id="view-connect" class="view">
+        <p class="muted">
+          Connect this Mac to Keep. Everything you copy is sent automatically —
+          except items macOS flags as passwords, which are skipped.
+        </p>
+        <button id="connect-btn" class="primary">Connect this Mac</button>
+        <p id="connect-hint" class="hint"></p>
+      </section>
+
+      <!-- Connected view -->
+      <section id="view-main" class="view hidden">
+        <div class="statusline">
+          <span id="device-name" class="device"></span>
+          <label class="toggle">
+            <input type="checkbox" id="pause-toggle" />
+            <span>Pause</span>
+          </label>
+        </div>
+        <div class="statusline statusline--sub">
+          <label class="toggle">
+            <input type="checkbox" id="autostart-toggle" />
+            <span>Start at login</span>
+          </label>
+          <button id="signout-btn" class="link">Sign out</button>
+        </div>
+        <h2 class="section-title">Recently sent</h2>
+        <ul id="recent" class="recent"></ul>
+      </section>
+    </main>
+  </body>
+</html>

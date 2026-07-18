@@ -4074,7 +4074,16 @@ Then **return to Keep Secrets** (Stage E → F → Phase 9 → Phase 10).
 - **Phase 14b — Device management** (rest of Part II §25 Phase 3): presence,
   device dashboard (rename/revoke), delivery acknowledgement, `device.revoked`
   events. Deferred until a second device type emits (Phases 15–17).
-- **Phase 15 — macOS & Windows companion** (Tauri preferred) — Part II §25 Ph 4.
+- **[~] Phase 15 — macOS & Windows companion** (Tauri) — Part II §25 Ph 4.
+  v1 (macOS, send-only) done: `apps/keep-desktop` is a Tauri menu-bar app that
+  polls the clipboard (~1s), auto-sends new copies as `origin: macos` via the
+  existing device-auth + `POST /clipboard/items`, with a local secret-guard
+  (reuses `@keephq/domain` `detectSensitivity`), Pause toggle, and start-at-login
+  (autostart LaunchAgent). API traffic routed through `tauri-plugin-http` to
+  bypass webview CORS; token in the Tauri store. Builds to `.app`/`.dmg`.
+  Remaining: Keychain token storage; native `changeCount`/concealed-type
+  detection (skip password-manager copies at the OS level); receive/auto-place;
+  Windows; code signing + notarization.
 - **Phase 16 — Android / Samsung companion** (Sharesheet-first) — Ph 5.
 - **Phase 17 — iPhone / iPad companion** (Share Extension, App Intents) — Ph 6.
 - **Phase 18 — Client-side clipboard encryption** (threat model first;
