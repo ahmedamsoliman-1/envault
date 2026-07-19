@@ -97,10 +97,10 @@ protected the publish still succeeds and the bump is left to a manual edit.
 
 Create a `vscode-release` GitHub environment with:
 
-| Kind             | Name       | Purpose                                                          |
-| ---------------- | ---------- | ---------------------------------------------------------------- |
+| Kind               | Name       | Purpose                                                            |
+| ------------------ | ---------- | ------------------------------------------------------------------ |
 | Environment secret | `VSCE_PAT` | Azure DevOps PAT for the `keep` publisher, **Marketplace: Manage** |
-| Environment secret | `OVSX_PAT` | _(optional)_ Open VSX token to mirror the same build             |
+| Environment secret | `OVSX_PAT` | _(optional)_ Open VSX token to mirror the same build               |
 
 Because `vscode-v*` and `keep-v*` use different tag prefixes, the extension and
 native release workflows never trigger each other.

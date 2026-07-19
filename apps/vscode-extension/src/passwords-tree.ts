@@ -28,9 +28,7 @@ type PasswordNode = LockedNode | EmptyNode | EntryNode;
  * demand. Decryption happens locally with the in-memory vault key — plaintext
  * never touches disk, settings or workspace state.
  */
-export class PasswordsTreeProvider
-  implements vscode.TreeDataProvider<PasswordNode>
-{
+export class PasswordsTreeProvider implements vscode.TreeDataProvider<PasswordNode> {
   readonly #onDidChangeTreeData = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.#onDidChangeTreeData.event;
 
@@ -92,9 +90,7 @@ export class PasswordsTreeProvider
       vscode.TreeItemCollapsibleState.None,
     );
     item.description = revealed ? entry.password : MASK;
-    item.iconPath = new vscode.ThemeIcon(
-      entry.favorite ? "star-full" : "key",
-    );
+    item.iconPath = new vscode.ThemeIcon(entry.favorite ? "star-full" : "key");
     item.tooltip = new vscode.MarkdownString(
       [
         entry.title ? `**${entry.title}**` : undefined,
@@ -160,7 +156,9 @@ export async function copyPassword(node: unknown): Promise<void> {
   const entry = (node as EntryNode | undefined)?.entry;
   if (!entry) return;
   await vscode.env.clipboard.writeText(entry.password);
-  void vscode.window.showInformationMessage("Password copied to your clipboard.");
+  void vscode.window.showInformationMessage(
+    "Password copied to your clipboard.",
+  );
 }
 
 /** Copies the entry's username into the OS clipboard. */
@@ -172,7 +170,9 @@ export async function copyUsername(node: unknown): Promise<void> {
     return;
   }
   await vscode.env.clipboard.writeText(entry.username);
-  void vscode.window.showInformationMessage("Username copied to your clipboard.");
+  void vscode.window.showInformationMessage(
+    "Username copied to your clipboard.",
+  );
 }
 
 /** Toggles the masked/revealed state of the entry's password in the tree. */

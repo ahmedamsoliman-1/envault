@@ -5,3 +5,7 @@ dist
 coverage
 pnpm-lock.yaml
 Plan.md
+apps/keep-desktop/src-tauri/target
+apps/keep-desktop/src-tauri/gen/android/**/build
+apps/keep-desktop/src-tauri/gen/android/app/src/main/assets
+apps/keep-desktop/src-tauri/gen/schemas

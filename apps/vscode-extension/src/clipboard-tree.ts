@@ -20,9 +20,7 @@ type ClipboardNode = ClipboardItemNode | ClipboardEmptyNode;
  * copies or inserts it, so plaintext is never held in the tree. Sensitive items
  * stay masked, matching the web workspace and the history Quick Pick.
  */
-export class ClipboardTreeProvider
-  implements vscode.TreeDataProvider<ClipboardNode>
-{
+export class ClipboardTreeProvider implements vscode.TreeDataProvider<ClipboardNode> {
   readonly #onDidChangeTreeData = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.#onDidChangeTreeData.event;
 
