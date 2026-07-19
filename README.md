@@ -228,6 +228,8 @@ still requiring attention is:
 
 ## Documentation
 
+- [Wiki home](docs/wiki-home.md) — compact platform introduction and contributor
+  links, ready to publish as the GitHub Wiki landing page.
 - [Master plan](docs/master-plan.md) — product decisions, shipped phases, and
   remaining roadmap.
 - [Architecture](docs/architecture.md) — dependency direction and system
