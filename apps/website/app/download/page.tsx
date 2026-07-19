@@ -237,7 +237,9 @@ export default async function DownloadPage() {
                 <h2 className="text-lg font-semibold tracking-[-0.02em]">
                   Keep Clipboard for Android &amp; Samsung
                 </h2>
-                <p className="text-xs text-white/50">Mobile companion</p>
+                <p className="text-xs text-white/50">
+                  Public beta · direct APK
+                </p>
               </div>
             </div>
             <ul className="mt-6 space-y-2.5">
@@ -270,6 +272,11 @@ export default async function DownloadPage() {
               >
                 Follow signed releases on GitHub
               </a>
+              <p className="text-xs leading-5 text-white/45">
+                Android limits background clipboard access. This beta uses
+                explicit sharing and manual sending; Share Sheet, biometrics,
+                and notifications will arrive in later updates.
+              </p>
             </div>
           </article>
 

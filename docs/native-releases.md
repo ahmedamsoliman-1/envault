@@ -13,9 +13,10 @@ publish from an existing `keep-v*` Git tag.
 - `Keep-Clipboard-Android-universal.apk`
 - `SHA256SUMS.txt`
 
-The Android release job remains blocked until the native Android shell, secure
-storage, biometrics, Sharesheet and notification work passes its release gate.
-Until then, keep `KEEP_ANDROID_RELEASE_APPROVED` unset or set to `false`.
+The Android public-beta release gate requires Android Keystore-backed session
+storage, signed upgrade testing, reliable pairing/sign-out, and honest product
+limitations on the download page. Sharesheet, biometrics, notifications, and
+additional DeX polish may ship in later beta updates.
 
 Before that public gate, `.github/workflows/android-test.yml` can be run
 manually from `main`. It creates a signed universal APK as a private GitHub

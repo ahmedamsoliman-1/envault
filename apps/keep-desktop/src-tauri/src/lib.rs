@@ -5,6 +5,8 @@ use tauri::{
     Manager, WindowEvent,
 };
 
+mod secure_session;
+
 /// Show the menu-bar window and bring it to the front.
 #[cfg(desktop)]
 fn show_window(app: &tauri::AppHandle) {
@@ -50,6 +52,12 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(secure_session::init())
+        .invoke_handler(tauri::generate_handler![
+            secure_session::secure_get_token,
+            secure_session::secure_set_token,
+            secure_session::secure_delete_token
+        ])
         .setup(|_app| {
             #[cfg(desktop)]
             {

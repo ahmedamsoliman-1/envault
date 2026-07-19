@@ -1,5 +1,6 @@
 import { KeepClient } from "@keephq/api-client";
 import { detectSensitivity } from "@keephq/domain";
+import { invoke } from "@tauri-apps/api/core";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -45,6 +46,12 @@ const client = new KeepClient({
   getAccessToken: () => Promise.resolve(token),
   fetch: tauriFetch as unknown as typeof globalThis.fetch,
 });
+
+const secureToken = {
+  get: () => invoke<string | null>("secure_get_token"),
+  set: (value: string) => invoke<void>("secure_set_token", { token: value }),
+  delete: () => invoke<void>("secure_delete_token"),
+};
 
 const $ = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -224,21 +231,10 @@ async function connect() {
     let lastExchangeError: string | null = null;
     while (Date.now() < expires) {
       await sleep(auth.intervalSeconds * 1000);
+      let result: Awaited<ReturnType<typeof client.devices.exchange>>;
       try {
-        const result = await client.devices.exchange(
-          auth.authorizationId,
-          verifier,
-        );
+        result = await client.devices.exchange(auth.authorizationId, verifier);
         lastExchangeError = null;
-        if (result.status === "authorized") {
-          token = result.accessToken;
-          await store.set("token", token);
-          await store.set("deviceName", result.session.deviceName);
-          await store.save();
-          await showMain(result.session.deviceName);
-          if (!isMobile) void startWatching();
-          return;
-        }
       } catch (error) {
         // Android can briefly invalidate an in-flight HTTP connection while
         // this activity returns from the external approval browser. Keep the
@@ -246,6 +242,21 @@ async function connect() {
         // the entire pairing flow again.
         lastExchangeError = msg(error);
         connectHint("Returning from the browser — reconnecting to Keep…");
+        continue;
+      }
+      if (result.status === "authorized") {
+        token = result.accessToken;
+        if (isMobile) {
+          await secureToken.set(token);
+          await store.delete("token");
+        } else {
+          await store.set("token", token);
+        }
+        await store.set("deviceName", result.session.deviceName);
+        await store.save();
+        await showMain(result.session.deviceName);
+        if (!isMobile) void startWatching();
+        return;
       }
     }
     connectHint(
@@ -262,6 +273,7 @@ async function connect() {
 
 async function signOut() {
   token = null;
+  if (isMobile) await secureToken.delete();
   await store.delete("token");
   await store.delete("deviceName");
   await store.save();
@@ -329,7 +341,18 @@ async function tick() {
 
 async function init() {
   store = await load("keep-clipboard.json");
-  token = (await store.get<string>("token")) ?? null;
+  const legacyToken = (await store.get<string>("token")) ?? null;
+  if (isMobile) {
+    token = await secureToken.get();
+    if (!token && legacyToken) {
+      await secureToken.set(legacyToken);
+      token = legacyToken;
+      await store.delete("token");
+      await store.save();
+    }
+  } else {
+    token = legacyToken;
+  }
 
   $("connect-btn").addEventListener("click", () => void connect());
   $("signout-btn").addEventListener("click", () => void signOut());
