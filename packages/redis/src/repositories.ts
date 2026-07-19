@@ -1,13 +1,17 @@
 import type {
   BulkEnvironmentRequest,
   CreateEnvironmentRequest,
+  CreatePasswordItemRequest,
   CreateProjectRequest,
   CreateVariableRequest,
   CreateVaultRequest,
   EnvironmentDto,
   ImportEnvironmentRequest,
+  ImportPasswordsRequest,
+  PasswordItemDto,
   ProjectDto,
   UpdateEnvironmentRequest,
+  UpdatePasswordItemRequest,
   UpdateProjectRequest,
   UpdateVariableRequest,
   VariableDto,
@@ -35,6 +39,9 @@ interface VaultState {
   variables: Record<string, VariableDto>;
   revisions: Revision[];
   operations: Record<string, Operation>;
+  // Added after initial vault format; vaults created earlier omit this key, so
+  // readers must treat a missing value as an empty collection (see passwordMap).
+  passwords?: Record<string, PasswordItemDto>;
 }
 
 export interface WorkspaceOverviewEnvironment extends EnvironmentDto {
@@ -108,6 +115,15 @@ function variableList(state: VaultState, environmentId: string) {
     (item) => item.environmentId === environmentId,
   );
 }
+function passwordMap(state: VaultState) {
+  if (!state.passwords) state.passwords = {};
+  return state.passwords;
+}
+function passwordList(state: VaultState) {
+  return Object.values(state.passwords ?? {}).sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
+}
 
 function workspaceOverview(state: VaultState): WorkspaceOverview {
   const projects = projectList(state);
@@ -167,6 +183,7 @@ export class RedisVaultRepository {
       variables: {},
       revisions: [],
       operations: {},
+      passwords: {},
     };
     const result = await this.redis.eval(
       "if redis.call('EXISTS', KEYS[1]) == 1 or redis.call('EXISTS', KEYS[2]) == 1 then return 0 end; redis.call('SET', KEYS[1], ARGV[1]); redis.call('SET', KEYS[2], ARGV[2]); redis.call('SET', KEYS[3], ARGV[3]); return 1",
@@ -597,6 +614,111 @@ export class RedisEnvironmentRepository {
         deletedIds: input.deleteIds,
         version: environment.version,
       };
+      state.operations[input.operationId] = {
+        fingerprint: operationFingerprint,
+        result: { ...result, replayed: true },
+      };
+      return result;
+    });
+  }
+}
+
+/**
+ * Personal password entries. Each entry is an opaque client-encrypted blob with
+ * its own `version` for cross-device optimistic concurrency. The store never
+ * sees plaintext; it only round-trips ciphertext + identity + version.
+ */
+export class RedisPasswordRepository {
+  public constructor(private readonly redis: KeepRedis) {}
+
+  public async list(ownerId: string) {
+    const result = await stateFor(this.redis, ownerId);
+    return result ? passwordList(result.state) : [];
+  }
+
+  public async create(ownerId: string, input: CreatePasswordItemRequest) {
+    return mutate(this.redis, ownerId, (state) => {
+      const passwords = passwordMap(state);
+      if (passwords[input.id]) return { duplicate: true as const };
+      const timestamp = now();
+      const item: PasswordItemDto = {
+        id: input.id,
+        vaultId: state.vault.vaultId,
+        version: 0,
+        encryptedData: input.encryptedData,
+        encryptionIv: input.encryptionIv,
+        encryptionVersion: input.encryptionVersion,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      passwords[input.id] = item;
+      return { item };
+    });
+  }
+
+  public async update(
+    ownerId: string,
+    id: string,
+    input: UpdatePasswordItemRequest,
+  ) {
+    return mutate(this.redis, ownerId, (state) => {
+      const passwords = passwordMap(state);
+      const current = passwords[id];
+      if (!current) return null;
+      if (current.version !== input.expectedVersion)
+        return { conflictVersion: current.version };
+      const updated: PasswordItemDto = {
+        ...current,
+        encryptedData: input.encryptedData,
+        encryptionIv: input.encryptionIv,
+        encryptionVersion: input.encryptionVersion,
+        version: current.version + 1,
+        updatedAt: now(),
+      };
+      passwords[id] = updated;
+      return { item: updated, version: updated.version };
+    });
+  }
+
+  public async delete(ownerId: string, id: string, expectedVersion: number) {
+    return mutate(this.redis, ownerId, (state) => {
+      const passwords = passwordMap(state);
+      const current = passwords[id];
+      if (!current) return null;
+      if (current.version !== expectedVersion)
+        return { conflictVersion: current.version };
+      delete passwords[id];
+      return { deleted: true as const };
+    });
+  }
+
+  public async importItems(ownerId: string, input: ImportPasswordsRequest) {
+    return mutate(this.redis, ownerId, (state) => {
+      const operationFingerprint = fingerprint(input);
+      const previous = state.operations[input.operationId];
+      if (previous)
+        return previous.fingerprint === operationFingerprint
+          ? previous.result
+          : { idempotencyConflict: true as const };
+      const passwords = passwordMap(state);
+      const timestamp = now();
+      const imported: PasswordItemDto[] = [];
+      for (const entry of input.items) {
+        const existing = passwords[entry.id];
+        const item: PasswordItemDto = {
+          id: entry.id,
+          vaultId: state.vault.vaultId,
+          version: existing ? existing.version + 1 : 0,
+          encryptedData: entry.encryptedData,
+          encryptionIv: entry.encryptionIv,
+          encryptionVersion: entry.encryptionVersion,
+          createdAt: existing?.createdAt ?? timestamp,
+          updatedAt: timestamp,
+        };
+        passwords[entry.id] = item;
+        imported.push(item);
+      }
+      const result = { replayed: false, items: imported };
       state.operations[input.operationId] = {
         fingerprint: operationFingerprint,
         result: { ...result, replayed: true },

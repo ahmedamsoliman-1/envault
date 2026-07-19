@@ -1,13 +1,18 @@
 # Keep Platform Wiki
 
-Keep is a secure developer platform for encrypted environment secrets and
-cross-device clipboard synchronization. Every client shares the same identity,
-device-authorization flow, versioned API, contracts, and domain rules.
+Keep is a secure developer platform for encrypted environment secrets, personal
+passwords, and cross-device clipboard synchronization. Every client shares the
+same identity, device-authorization flow, versioned API, contracts, and domain
+rules.
 
 ## What Keep includes
 
 - **Keep Secrets:** encrypted projects, environments, variables, `.env`
   import/export, and VS Code pull/push workflows.
+- **Keep Passwords:** a personal, end-to-end-encrypted password manager that
+  reuses the vault key (whole-entry client-side encryption). Web, feature-flagged
+  — add/edit/copy/search shipped (P0a); browser-CSV import is next. See
+  [passwords.md](passwords.md).
 - **Keep Clipboard:** short-lived text history and synchronization across the
   web, VS Code, macOS, Windows, and Android/Samsung.
 - **Native clients:** a shared Tauri application for desktop and Android, with

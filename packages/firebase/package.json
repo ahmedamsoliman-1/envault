@@ -9,7 +9,8 @@
     "./client": "./src/client.ts",
     "./repositories/environment": "./src/repositories/environment-repository.ts",
     "./repositories/project": "./src/repositories/project-repository.ts",
-    "./repositories/vault": "./src/repositories/vault-repository.ts"
+    "./repositories/vault": "./src/repositories/vault-repository.ts",
+    "./repositories/password": "./src/repositories/password-repository.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

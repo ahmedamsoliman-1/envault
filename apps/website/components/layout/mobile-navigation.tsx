@@ -3,6 +3,7 @@
 import {
   ClipboardList,
   FolderKanban,
+  KeyRound,
   LayoutDashboard,
   Menu,
   Settings,
@@ -17,11 +18,14 @@ import { useEffect, useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { KeepLogo } from "@/components/brand/keep-logo";
 import { VaultQuickControl } from "@/components/vault/vault-quick-control";
-import { isClipboardEnabled } from "@/lib/features";
+import { isClipboardEnabled, isPasswordsEnabled } from "@/lib/features";
 
 const links = [
   { href: "/app/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/app/projects", label: "Projects", icon: FolderKanban },
+  ...(isPasswordsEnabled()
+    ? [{ href: "/app/passwords", label: "Passwords", icon: KeyRound }]
+    : []),
   ...(isClipboardEnabled()
     ? [{ href: "/app/clipboard", label: "Clipboard", icon: ClipboardList }]
     : []),

@@ -66,3 +66,21 @@ export interface EnvironmentRepository {
   ): Promise<Environment[]>;
   save(environment: Environment): Promise<void>;
 }
+
+/**
+ * A password entry. The whole entry (title, url, username, password, notes,
+ * folder, tags, favorite) is encrypted client-side into `encryptedData`; the
+ * server never sees any of those fields. `version` provides per-item optimistic
+ * concurrency across devices.
+ */
+export interface PasswordItem extends AuditedEntity {
+  version: number;
+  encryptedData: string;
+  encryptionIv: string;
+  encryptionVersion: number;
+}
+
+export interface PasswordRepository {
+  list(ownerId: EntityId, vaultId: EntityId): Promise<PasswordItem[]>;
+  save(item: PasswordItem): Promise<void>;
+}

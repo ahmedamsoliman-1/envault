@@ -3,6 +3,7 @@ import {
   ClipboardList,
   Download,
   FolderKanban,
+  KeyRound,
   LayoutDashboard,
   Settings,
   UserRound,
@@ -15,11 +16,14 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
 import { VaultQuickControl } from "@/components/vault/vault-quick-control";
-import { isClipboardEnabled } from "@/lib/features";
+import { isClipboardEnabled, isPasswordsEnabled } from "@/lib/features";
 
 const navigation = [
   { href: "/app/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/app/projects", label: "Projects", icon: FolderKanban },
+  ...(isPasswordsEnabled()
+    ? [{ href: "/app/passwords", label: "Passwords", icon: KeyRound }]
+    : []),
   ...(isClipboardEnabled()
     ? [{ href: "/app/clipboard", label: "Clipboard", icon: ClipboardList }]
     : []),

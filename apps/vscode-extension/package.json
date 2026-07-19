@@ -2,7 +2,7 @@
   "name": "keep-vscode",
   "displayName": "Keep",
   "description": "Secure environment management from VS Code.",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "publisher": "keep",
   "license": "UNLICENSED",
   "repository": {

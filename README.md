@@ -1,13 +1,17 @@
 # Keep
 
-Keep is a secure, API-first platform for managing encrypted environment secrets
-and synchronizing clipboard text across the devices and tools where developers
-work.
+Keep is a secure, API-first platform for managing encrypted environment secrets,
+personal passwords, and synchronized clipboard text across the devices and tools
+where developers work.
 
-The platform has two connected products:
+The platform has three connected products:
 
 - **Keep Secrets** organizes projects and environments, encrypts values on the
   client, and safely moves `.env` data between the web app and VS Code.
+- **Keep Passwords** is a personal, end-to-end-encrypted password manager that
+  reuses the same vault key; entries are encrypted whole on the client and the
+  server only ever stores ciphertext. Web, feature-flagged. See
+  [docs/passwords.md](docs/passwords.md).
 - **Keep Clipboard** synchronizes short-lived text between the web, VS Code,
   macOS, Windows, and Android/Samsung clients while filtering likely secrets
   where the platform permits automatic clipboard observation.
@@ -17,15 +21,15 @@ shared set of contracts and domain rules across every client.
 
 ## Platform status
 
-| Surface                | Secrets                                                    | Clipboard                                                                  | Distribution                    |
-| ---------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------- |
-| Web                    | Projects, environments, encrypted variables, import/export | History, manual send, retention modes, live updates                        | Hosted application              |
-| VS Code                | Device sign-in, pull/push `.env`, encrypted vault unlock   | Send selection/clipboard, browse and insert history                        | VS Code Marketplace             |
-| macOS                  | —                                                          | Automatic send, likely-secret filtering, history and tap-to-copy           | Download page / GitHub Release  |
-| Android & Samsung      | —                                                          | Manual send, history and tap-to-copy                                       | Signed direct-download APK beta |
-| Windows                | —                                                          | Shared desktop companion implemented; signing and release hardening remain | Release gate closed             |
-| Wear OS / Galaxy Watch | —                                                          | Planned glance-and-action companion                                        | Future phase                    |
-| iPhone / iPad          | —                                                          | Planned share-driven companion                                             | Future phase                    |
+| Surface                | Secrets                                                    | Passwords                                     | Clipboard                                                                  | Distribution                    |
+| ---------------------- | ---------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------- |
+| Web                    | Projects, environments, encrypted variables, import/export | Encrypted entries: add/edit/copy/search (P0a) | History, manual send, retention modes, live updates                        | Hosted application              |
+| VS Code                | Device sign-in, pull/push `.env`, encrypted vault unlock   | —                                             | Send selection/clipboard, browse and insert history                        | VS Code Marketplace             |
+| macOS                  | —                                                          | —                                             | Automatic send, likely-secret filtering, history and tap-to-copy           | Download page / GitHub Release  |
+| Android & Samsung      | —                                                          | —                                             | Manual send, history and tap-to-copy                                       | Signed direct-download APK beta |
+| Windows                | —                                                          | —                                             | Shared desktop companion implemented; signing and release hardening remain | Release gate closed             |
+| Wear OS / Galaxy Watch | —                                                          | —                                             | Planned glance-and-action companion                                        | Future phase                    |
+| iPhone / iPad          | —                                                          | —                                             | Planned share-driven companion                                             | Future phase                    |
 
 Android does not silently monitor the clipboard in the background. Its current
 beta deliberately uses explicit manual sending. Sharesheet support,

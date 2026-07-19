@@ -31,6 +31,10 @@ export const apiErrorCodeSchema = z.enum([
   "CLIPBOARD_ITEM_NOT_FOUND",
   "CLIPBOARD_PAYLOAD_TOO_LARGE",
   "CLIPBOARD_PINNED_LIMIT",
+  "PASSWORDS_DISABLED",
+  "PASSWORD_ITEM_NOT_FOUND",
+  "PASSWORD_VERSION_CONFLICT",
+  "DUPLICATE_PASSWORD",
   "INTERNAL_ERROR",
 ]);
 
@@ -67,12 +71,14 @@ export const deviceScopeSchema = z.enum([
   "clipboard:read",
   "clipboard:write",
   "clipboard:receive",
+  "passwords:read",
+  "passwords:write",
 ]);
 export const createDeviceAuthorizationRequestSchema = z.object({
   deviceName: z.string().trim().min(1).max(80),
   clientName: z.string().trim().min(1).max(80).default("Keep VS Code"),
   codeChallenge: z.string().min(43).max(128),
-  scopes: z.array(deviceScopeSchema).min(1).max(8),
+  scopes: z.array(deviceScopeSchema).min(1).max(12),
 });
 export const exchangeDeviceAuthorizationRequestSchema = z.object({
   codeVerifier: z.string().min(43).max(128),
@@ -395,6 +401,66 @@ export const clipboardListSchema = z.object({
   items: z.array(clipboardItemDtoSchema),
 });
 
+/**
+ * A password entry is encrypted client-side as one opaque blob (title, url,
+ * username, password, notes, folder, tags, favorite all live inside the
+ * ciphertext). The server stores and returns only ciphertext + identity +
+ * per-item version, and learns nothing about the entry. Search and sort happen
+ * in the browser after the vault is unlocked.
+ */
+export const passwordItemDtoSchema = z.object({
+  id: z.string().uuid(),
+  vaultId: z.string().min(1),
+  version: z.number().int().nonnegative(),
+  encryptedData: z.string().min(1).max(1_000_000),
+  encryptionIv: z.string().min(1).max(256),
+  encryptionVersion: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const createPasswordItemRequestSchema = z.object({
+  id: z.string().uuid(),
+  encryptedData: z.string().min(1).max(1_000_000),
+  encryptionIv: z.string().min(1).max(256),
+  encryptionVersion: z.literal(1),
+});
+
+export const updatePasswordItemRequestSchema = z.object({
+  encryptedData: z.string().min(1).max(1_000_000),
+  encryptionIv: z.string().min(1).max(256),
+  encryptionVersion: z.literal(1),
+  expectedVersion: z.number().int().nonnegative(),
+});
+
+export const passwordListSchema = z.object({
+  items: z.array(passwordItemDtoSchema),
+});
+
+export const importPasswordItemSchema = createPasswordItemRequestSchema;
+export const importPasswordsRequestSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    items: z.array(importPasswordItemSchema).min(1).max(100),
+  })
+  .superRefine((value, context) => {
+    const ids = new Set<string>();
+    value.items.forEach((item, index) => {
+      if (ids.has(item.id)) {
+        context.addIssue({
+          code: "custom",
+          message: "Password IDs must be unique within an import chunk.",
+          path: ["items", index, "id"],
+        });
+      }
+      ids.add(item.id);
+    });
+  });
+export const importPasswordsResponseSchema = z.object({
+  items: z.array(passwordItemDtoSchema),
+  replayed: z.boolean(),
+});
+
 export function createSuccessResponse<T>(data: T, requestId: string) {
   return { data, meta: { requestId } };
 }
@@ -468,3 +534,18 @@ export type CreateClipboardItemRequest = z.input<
   typeof createClipboardItemRequestSchema
 >;
 export type ClipboardList = z.infer<typeof clipboardListSchema>;
+export type PasswordItemDto = z.infer<typeof passwordItemDtoSchema>;
+export type CreatePasswordItemRequest = z.infer<
+  typeof createPasswordItemRequestSchema
+>;
+export type UpdatePasswordItemRequest = z.infer<
+  typeof updatePasswordItemRequestSchema
+>;
+export type PasswordList = z.infer<typeof passwordListSchema>;
+export type ImportPasswordItem = z.infer<typeof importPasswordItemSchema>;
+export type ImportPasswordsRequest = z.infer<
+  typeof importPasswordsRequestSchema
+>;
+export type ImportPasswordsResponse = z.infer<
+  typeof importPasswordsResponseSchema
+>;

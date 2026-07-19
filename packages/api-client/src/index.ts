@@ -18,6 +18,12 @@ import type {
   EnvironmentDto,
   ImportEnvironmentRequest,
   ImportEnvironmentResponse,
+  ImportPasswordsRequest,
+  ImportPasswordsResponse,
+  CreatePasswordItemRequest,
+  UpdatePasswordItemRequest,
+  PasswordItemDto,
+  PasswordList,
   ProjectDto,
   SessionResponse,
   SessionUser,
@@ -210,6 +216,30 @@ export class KeepClient {
         `/api/v1/environments/${environmentId}/bulk`,
         { method: "POST", body: JSON.stringify(input) },
       ),
+  };
+
+  public readonly passwords = {
+    list: () => this.request<PasswordList>("/api/v1/passwords"),
+    create: (input: CreatePasswordItemRequest) =>
+      this.request<{ item: PasswordItemDto }>("/api/v1/passwords", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (passwordId: string, input: UpdatePasswordItemRequest) =>
+      this.request<{ item: PasswordItemDto; version: number }>(
+        `/api/v1/passwords/${passwordId}`,
+        { method: "PATCH", body: JSON.stringify(input) },
+      ),
+    delete: (passwordId: string, expectedVersion: number) =>
+      this.request<{ deleted: true }>(`/api/v1/passwords/${passwordId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ expectedVersion }),
+      }),
+    import: (input: ImportPasswordsRequest) =>
+      this.request<ImportPasswordsResponse>("/api/v1/passwords/import", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
   };
 
   public readonly devices = {

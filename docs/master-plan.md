@@ -4065,6 +4065,42 @@ cross-cutting work, and the candidate feature backlog._
 
 Then **return to Keep Secrets** (Stage E → F → Phase 9 → Phase 10).
 
+## New product area — Keep Passwords
+
+A third product area alongside Secrets and Clipboard: a personal, end-to-end
+encrypted password manager intended to become the source of truth that replaces
+scattered browser/app password stores. It reuses the existing zero-knowledge
+vault key — no server-side key — and encrypts each entry whole on the client, so
+the server only stores ciphertext. The detailed spec and phasing live in
+[`docs/passwords.md`](passwords.md).
+
+- **[x] P0a — Core vault (CRUD + copy).** `@keephq/crypto`
+  `encryptPasswordItem`/`decryptPasswordItem` (AES-GCM, `keep:password` AAD);
+  `PasswordItemDto` + create/update/import schemas, `passwords:read|write`
+  scopes, and password error codes in `@keephq/api-contract`; `PasswordItem` +
+  `PasswordRepository` in `@keephq/domain`; `RedisPasswordRepository` (per-item
+  version, CAS `mutate`, idempotent import) on the vault state blob under the
+  retained `envault:v1` namespace; `@keephq/firebase` re-export facade;
+  `client.passwords.*`; `/api/v1/passwords[/:id|/import]` route handlers (auth →
+  scope → parse → repo → result-union → envelope); the `/app/passwords`
+  workspace (unlock gate, add/edit/delete, copy username & password, reveal,
+  client-side search), sidebar + mobile nav, and `lib/password-entry.ts`.
+  Feature-flagged with `NEXT_PUBLIC_KEEP_PASSWORDS_ENABLED`. Unit tests cover the
+  crypto round-trip/AAD binding and repository CRUD + import idempotency;
+  `lint` + `typecheck` + `test` green. Verified at the unit level only — no live
+  end-to-end drive yet (needs Redis + Firebase + an unlocked vault).
+- **P0b — Browser-CSV import & cleanup.** Parse Chrome/Edge/Firefox/Safari/
+  Bitwarden/1Password CSV exports in the browser, preview and deselect junk rows,
+  encrypt client-side, and commit through `client.passwords.import` (idempotent,
+  chunked). Multi-select bulk delete for cleanup.
+- **P1 — Health & hygiene.** Password generator; weak/reused/old analysis
+  (client-side); HaveIBeenPwned breach check via k-anonymity; trash & restore;
+  optional "re-authenticate to reveal" as a hardening gate over the shared unlock.
+- **P2 — Richer items & reach.** Secure notes, cards, identities; TOTP; folder/tag
+  maturity; surfacing in VS Code / desktop / mobile via device-auth + api-client.
+- **P3 — Sharing.** Secure sharing and browser-extension autofill (aligns with
+  the team/shared backlog below).
+
 ## Deferred Keep Clipboard phases (after the return, or as later divergences)
 
 - **[x] Phase 14a — Real-time web sync** (part of Part II §25 Phase 3): durable
@@ -4215,6 +4251,7 @@ Then **return to Keep Secrets** (Stage E → F → Phase 9 → Phase 10).
 | Area                 | State                      | Next attention                                                        |
 | -------------------- | -------------------------- | --------------------------------------------------------------------- |
 | Keep Secrets core    | Shipped                    | Revision history, activity, comparison UI, hardening                  |
+| Keep Passwords       | P0a shipped (web)          | Browser-CSV import + cleanup (P0b); generator, breach check (P1)      |
 | Web Clipboard        | Shipped                    | Operational hardening and client-side encryption threat model         |
 | VS Code Clipboard    | Shipped, request/response  | Live receive, notifications, paste-last, keybindings                  |
 | macOS Clipboard      | Shipped                    | Receive/auto-place, native sensitivity signals, notarization, updater |

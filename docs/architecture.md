@@ -1,9 +1,10 @@
 # Architecture
 
-Keep is an API-first platform with multiple clients and two bounded product
-areas: encrypted environment secrets and cross-device clipboard synchronization.
-The website is both a product surface and the BFF for the same versioned API
-used by VS Code and native clients.
+Keep is an API-first platform with multiple clients and three bounded product
+areas: encrypted environment secrets, a personal end-to-end-encrypted password
+manager, and cross-device clipboard synchronization. The website is both a
+product surface and the BFF for the same versioned API used by VS Code and
+native clients.
 
 ```text
 Web / VS Code / macOS / Windows / Android / future Wear OS and iOS
@@ -38,6 +39,13 @@ Keep Secrets encrypts plaintext on trusted clients. The API and primary storage
 receive versioned ciphertext and encryption metadata, not secret plaintext.
 Device-wrapped unlock material lets approved clients participate without asking
 users to type Firebase passwords into editor or native surfaces.
+
+Keep Passwords reuses the same vault key. Each entry is encrypted whole on the
+client (`@keephq/crypto` `encryptPasswordItem`, AAD-bound to `vaultId + itemId`
+under a `keep:password` label), so the server stores and returns only ciphertext
+and never sees titles, URLs, usernames, or passwords. Search and sort happen in
+the browser after unlock; the same header unlock control serves both Secrets and
+Passwords. See [passwords.md](passwords.md).
 
 Keep Clipboard currently applies authorization scopes, sensitivity detection,
 safe previews, deduplication, bounded retention, and payload-safe logging.
