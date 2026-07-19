@@ -4011,11 +4011,12 @@ Keep's roadmap is the Part I platform phases, with the Keep Clipboard phases
 inserted as an intentional divergence and numbered to continue the platform
 sequence.
 
-_Reconciled 2026-07-18: Keep Clipboard has shipped through **Phase 15a** — the
-macOS desktop agent is live and distributed from the website `/download` page,
-alongside the VS Code extension. The sections below track what's shipped, what
-Keep Secrets still owes, the remaining/planned clipboard + platform phases,
-cross-cutting desktop/extension/server work, and a candidate feature backlog._
+_Reconciled 2026-07-19: Keep Clipboard has shipped through the macOS companion
+and an Android/Samsung direct-download public beta, alongside the web and VS
+Code clients. Windows is implemented but remains behind its credential-storage,
+signing, and device-validation release gate. The sections below track what's
+shipped, what Keep Secrets still owes, the remaining clipboard/platform phases,
+cross-cutting work, and the candidate feature backlog._
 
 ## Done (Keep Secrets)
 
@@ -4125,6 +4126,16 @@ Then **return to Keep Secrets** (Stage E → F → Phase 9 → Phase 10).
   share-driven like Android. Reuses the same server + contracts.
 - **Phase 18 — Client-side clipboard encryption** (threat model first;
   reuse `@keephq/crypto` key-wrapping) — Ph 7.
+- **Phase 19 — Wear OS / Samsung Galaxy Watch companion** — a deliberately
+  small Clipboard companion, initially non-standalone and paired with the Keep
+  Android app. Native Kotlin + Compose for Wear OS; sanitized recent previews;
+  explicit send and phone-side copy requests; privacy-safe notifications; a
+  small Tile; scoped session transfer/revocation through the Wear OS Data Layer.
+  No Keep Secrets browsing, silent clipboard monitoring, sensitive lock-screen
+  content, watch-face clipboard history, Accessibility workarounds, or
+  Samsung-only dependency. A direct-cloud standalone mode is a later evaluation
+  after power, authentication, revocation, and secure-storage work. The detailed
+  plan and acceptance criteria live in `docs/wear-os.md`.
 
 ## Desktop hardening & distribution (cross-cuts 15a/15b)
 
@@ -4195,6 +4206,23 @@ Then **return to Keep Secrets** (Stage E → F → Phase 9 → Phase 10).
    owes these before it is "done".
 5. **Signing + notarization** — when distributing beyond your own devices.
 6. **Phase 18 — client-side clipboard encryption** — after a threat model.
+7. **Phase 19 — Wear OS / Galaxy Watch** — begin only after Android Sharesheet,
+   notifications, and device revocation provide a stable phone-side foundation;
+   follow the staged plan in `docs/wear-os.md`.
+
+## Phase attention summary (2026-07-19)
+
+| Area                 | State                      | Next attention                                                        |
+| -------------------- | -------------------------- | --------------------------------------------------------------------- |
+| Keep Secrets core    | Shipped                    | Revision history, activity, comparison UI, hardening                  |
+| Web Clipboard        | Shipped                    | Operational hardening and client-side encryption threat model         |
+| VS Code Clipboard    | Shipped, request/response  | Live receive, notifications, paste-last, keybindings                  |
+| macOS Clipboard      | Shipped                    | Receive/auto-place, native sensitivity signals, notarization, updater |
+| Windows Clipboard    | Implemented, release gated | Credential Manager, Authenticode, clean-device validation             |
+| Android/Samsung      | Public beta                | Sharesheet, notifications, biometrics, DeX, Quick Settings            |
+| Device platform      | Partial                    | Presence, rename, revoke, delivery acknowledgement                    |
+| Wear OS/Galaxy Watch | Planned                    | W0 feasibility and threat model after Android foundations             |
+| iOS/iPadOS           | Planned                    | Share Extension and explicit paste-driven UX                          |
 
 ## Suggested commit boundaries (historical — Step 0 + Phases 12–13, shipped)
 
