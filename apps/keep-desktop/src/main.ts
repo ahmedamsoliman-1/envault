@@ -53,6 +53,42 @@ const secureToken = {
   delete: () => invoke<void>("secure_delete_token"),
 };
 
+async function loadMobileToken(
+  legacyToken: string | null,
+): Promise<string | null> {
+  try {
+    const encryptedToken = await secureToken.get();
+    if (encryptedToken) return encryptedToken;
+
+    if (legacyToken) {
+      await secureToken.set(legacyToken);
+      await store.delete("token");
+      await store.save();
+    }
+  } catch (error) {
+    // Keystore support varies across Android devices and WebView/Tauri
+    // combinations. An upgrade must never make a valid session unusable.
+    console.warn(
+      "Secure session storage unavailable; using app-private store",
+      error,
+    );
+  }
+  return legacyToken;
+}
+
+async function saveMobileToken(value: string): Promise<void> {
+  try {
+    await secureToken.set(value);
+    await store.delete("token");
+  } catch (error) {
+    console.warn(
+      "Secure session storage unavailable; using app-private store",
+      error,
+    );
+    await store.set("token", value);
+  }
+}
+
 const $ = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -247,8 +283,7 @@ async function connect() {
       if (result.status === "authorized") {
         token = result.accessToken;
         if (isMobile) {
-          await secureToken.set(token);
-          await store.delete("token");
+          await saveMobileToken(token);
         } else {
           await store.set("token", token);
         }
@@ -273,7 +308,13 @@ async function connect() {
 
 async function signOut() {
   token = null;
-  if (isMobile) await secureToken.delete();
+  if (isMobile) {
+    try {
+      await secureToken.delete();
+    } catch (error) {
+      console.warn("Secure session storage could not be cleared", error);
+    }
+  }
   await store.delete("token");
   await store.delete("deviceName");
   await store.save();
@@ -340,20 +381,6 @@ async function tick() {
 // --- Wiring ---
 
 async function init() {
-  store = await load("keep-clipboard.json");
-  const legacyToken = (await store.get<string>("token")) ?? null;
-  if (isMobile) {
-    token = await secureToken.get();
-    if (!token && legacyToken) {
-      await secureToken.set(legacyToken);
-      token = legacyToken;
-      await store.delete("token");
-      await store.save();
-    }
-  } else {
-    token = legacyToken;
-  }
-
   $("connect-btn").addEventListener("click", () => void connect());
   $("signout-btn").addEventListener("click", () => void signOut());
   $("refresh-btn").addEventListener("click", () => void refreshHistory());
@@ -385,6 +412,15 @@ async function init() {
       }
     },
   );
+
+  try {
+    store = await load("keep-clipboard.json");
+    const legacyToken = (await store.get<string>("token")) ?? null;
+    token = isMobile ? await loadMobileToken(legacyToken) : legacyToken;
+  } catch (error) {
+    showConnect(`Could not open local app data: ${msg(error)}`);
+    return;
+  }
 
   if (token) {
     await showMain(
